@@ -1,0 +1,1619 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>账单追踪器</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#667eea">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="账单">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f4f8; color: #1a202c; min-height: 100vh; }
+
+  .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px 24px 16px; }
+  .header h1 { font-size: 20px; font-weight: 700; margin-bottom: 2px; }
+  .header p { font-size: 12px; opacity: 0.8; }
+
+  .stats { display: flex; gap: 10px; padding: 14px 20px; background: white; border-bottom: 1px solid #e2e8f0; flex-wrap: wrap; }
+  .stat-card { flex: 1; min-width: 90px; background: #f7fafc; border-radius: 10px; padding: 10px 12px; text-align: center; border: 1px solid #e2e8f0; }
+  .stat-card .val { font-size: 19px; font-weight: 700; color: #667eea; }
+  .stat-card .lbl { font-size: 11px; color: #718096; margin-top: 1px; }
+  .stat-card.danger .val { color: #e53e3e; }
+  .stat-card.warn .val { color: #dd6b20; }
+  .stat-card.ok .val { color: #38a169; }
+
+  .quickbar { display: flex; gap: 8px; padding: 12px 20px; background: #fffbeb; border-bottom: 2px solid #fef3c7; flex-wrap: wrap; align-items: center; }
+  .quickbar-label { font-size: 12px; font-weight: 700; color: #92400e; white-space: nowrap; }
+  .qbtn { padding: 6px 13px; border-radius: 20px; border: 1.5px solid #f6ad55; background: white; color: #c05621; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+  .qbtn:hover { background: #fef3c7; border-color: #ed8936; }
+
+  .toolbar { display: flex; gap: 10px; padding: 12px 20px; background: white; border-bottom: 1px solid #e2e8f0; flex-wrap: wrap; align-items: center; }
+  .toolbar select, .toolbar input[type=text] { border: 1px solid #e2e8f0; border-radius: 8px; padding: 7px 11px; font-size: 13px; background: #f7fafc; outline: none; color: #2d3748; }
+  .btn { padding: 7px 15px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.15s; }
+  .btn-primary { background: #667eea; color: white; }
+  .btn-primary:hover { background: #5a67d8; }
+  .ml-auto { margin-left: auto; }
+
+  .week-group { margin: 14px 18px; background: white; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); overflow: hidden; }
+  .week-header { display: flex; align-items: center; gap: 10px; padding: 11px 15px; background: #f7fafc; border-bottom: 1px solid #e2e8f0; cursor: pointer; user-select: none; }
+  .week-label { font-weight: 700; font-size: 13px; color: #2d3748; }
+  .week-summary { font-size: 12px; color: #718096; margin-left: auto; }
+
+  table { width: 100%; border-collapse: collapse; }
+  thead th { background: #edf2f7; font-size: 11px; color: #4a5568; font-weight: 700; padding: 7px 11px; text-align: left; white-space: nowrap; }
+  tbody tr { border-bottom: 1px solid #f0f4f8; }
+  tbody tr:hover { background: #fafbff; }
+  tbody td { padding: 8px 11px; font-size: 13px; color: #2d3748; vertical-align: middle; }
+
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .badge-unpaid { background: #fff5f5; color: #c53030; border: 1px solid #fed7d7; }
+  .badge-paid { background: #f0fff4; color: #276749; border: 1px solid #c6f6d5; }
+  .badge-overdue { background: #fffaf0; color: #c05621; border: 1px solid #feebc8; animation: pulse 1.5s infinite; }
+  .badge-draft { background: #f7fafc; color: #4a5568; border: 1px solid #e2e8f0; }
+  .badge-submitted { background: #ebf8ff; color: #2b6cb0; border: 1px solid #bee3f8; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
+
+  @keyframes spin { from{transform:rotate(0)} to{transform:rotate(360deg)} }
+  #sync-indicator { display:inline-flex; align-items:center; gap:5px; padding:5px 11px; border-radius:14px; font-size:12px; font-weight:700; transition:all 0.2s; cursor:pointer; }
+  #sync-indicator:hover { transform:scale(1.05); }
+
+
+  .cat-tag { display:inline-block; padding:2px 7px; border-radius:20px; font-size:11px; }
+  .cat-0 { background:#e9d8fd; color:#553c9a; }
+  .cat-1 { background:#feebc8; color:#7b341e; }
+  .cat-2 { background:#bee3f8; color:#2c5282; }
+  .cat-3 { background:#c6f6d5; color:#22543d; }
+  .cat-4 { background:#fed7d7; color:#822727; }
+  .cat-5 { background:#edf2f7; color:#4a5568; }
+
+  .pay-btn { background: #c6f6d5; color: #276749; border: none; border-radius: 6px; padding: 3px 9px; font-size: 11px; font-weight: 600; cursor: pointer; }
+  .pay-btn:hover { background: #9ae6b4; }
+  .adv-btn { background: #ebf8ff; color: #2b6cb0; border: 1px solid #bee3f8; border-radius: 6px; padding: 3px 9px; font-size: 11px; font-weight: 600; cursor: pointer; }
+  .adv-btn:hover { background: #bee3f8; }
+  .edit-btn { background: #ebf8ff; color: #2b6cb0; border: none; border-radius: 6px; padding: 3px 9px; font-size: 11px; font-weight: 600; cursor: pointer; margin-left: 3px; }
+  .edit-btn:hover { background: #bee3f8; }
+  .del-btn { background: #fed7d7; color: #c53030; border: none; border-radius: 6px; padding: 3px 9px; font-size: 11px; font-weight: 600; cursor: pointer; margin-left: 3px; }
+  .del-btn:hover { background: #feb2b2; }
+
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 100; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: white; border-radius: 16px; padding: 24px; width: 92%; max-width: 500px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); max-height: 92vh; overflow-y: auto; }
+  .modal h2 { font-size: 17px; font-weight: 700; margin-bottom: 16px; color: #2d3748; }
+  .form-section { background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+  .form-section-title { font-size: 10px; font-weight: 800; color: #a0aec0; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 10px; }
+  .form-group { margin-bottom: 10px; }
+  .form-group:last-child { margin-bottom: 0; }
+  .form-group label { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: #4a5568; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.03em; }
+  .form-group input, .form-group select { width: 100%; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 11px; font-size: 14px; outline: none; color: #2d3748; background: white; }
+  .form-group input:focus, .form-group select:focus { border-color: #667eea; }
+  .form-group input.auto-filled { background: #f0fff4; border-color: #9ae6b4; color: #276749; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .auto-hint { font-size: 10px; color: #68d391; font-weight: 600; margin-left: auto; }
+  .modal-btns { display: flex; gap: 10px; margin-top: 16px; justify-content: flex-end; }
+
+  .checklist { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+  .check-item { display: flex; align-items: center; gap: 10px; background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 9px; padding: 9px 12px; }
+  .check-item input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; accent-color: #667eea; flex-shrink: 0; }
+  .check-item .ci-info { flex: 1; }
+  .check-item .ci-name { font-weight: 600; font-size: 13px; color: #2d3748; }
+  .check-item .ci-sub { font-size: 11px; color: #a0aec0; margin-top: 1px; }
+  .check-item input[type=number] { width: 110px; border: 1px solid #e2e8f0; border-radius: 6px; padding: 5px 9px; font-size: 13px; outline: none; background: white; flex-shrink: 0; }
+  .check-item input[type=number]:focus { border-color: #667eea; }
+
+  .empty { text-align: center; padding: 40px; color: #a0aec0; font-size: 14px; }
+  .collapsed { display: none; }
+
+  /* Summary Panel */
+  .summary-panel { margin: 14px 18px; background: white; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); overflow: hidden; }
+  .summary-header { display: flex; align-items: center; gap: 10px; padding: 11px 16px; background: linear-gradient(135deg, #434190 0%, #553c9a 100%); color: white; cursor: pointer; user-select: none; }
+  .summary-header h3 { font-size: 14px; font-weight: 700; flex: 1; }
+
+  .summary-filters { background: #faf5ff; border-bottom: 1px solid #e9d8fd; padding: 12px 16px; display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; }
+  .sf-group { display: flex; flex-direction: column; gap: 4px; min-width: 140px; }
+  .sf-group label { font-size: 10px; font-weight: 800; color: #6b46c1; text-transform: uppercase; letter-spacing: 0.05em; }
+  .sf-group select, .sf-group input { border: 1px solid #d6bcfa; border-radius: 8px; padding: 7px 10px; font-size: 13px; background: white; outline: none; color: #2d3748; }
+  .sf-group select:focus, .sf-group input:focus { border-color: #667eea; }
+  .sf-quickbtns { display: flex; gap: 4px; flex-wrap: wrap; }
+  .sf-quick { padding: 5px 10px; border-radius: 16px; border: 1px solid #d6bcfa; background: white; color: #6b46c1; font-size: 11px; font-weight: 700; cursor: pointer; }
+  .sf-quick.active { background: #553c9a; color: white; border-color: #553c9a; }
+  .sf-quick:hover:not(.active) { background: #faf5ff; }
+  .sf-reset { padding: 6px 12px; border-radius: 8px; border: 1px solid #fed7d7; background: white; color: #c53030; font-size: 12px; font-weight: 700; cursor: pointer; }
+  .sf-reset:hover { background: #fff5f5; }
+
+  .summary-body { padding: 16px; }
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .sum-card { background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 14px; }
+  .sum-card .sc-label { font-size: 11px; color: #718096; font-weight: 600; margin-bottom: 4px; }
+  .sum-card .sc-amt { font-size: 18px; font-weight: 800; color: #2d3748; }
+  .sum-card .sc-sub { font-size: 11px; color: #a0aec0; margin-top: 2px; }
+  .sum-card.highlight { background: linear-gradient(135deg, #faf5ff, #e9d8fd22); border-color: #d6bcfa; }
+  .sum-card.highlight .sc-amt { color: #553c9a; }
+  .sum-divider { font-size: 11px; font-weight: 700; color: #a0aec0; text-transform: uppercase; letter-spacing: 0.08em; margin: 14px 0 8px; }
+  .sum-vendor-row { display: flex; align-items: center; padding: 7px 0; border-bottom: 1px solid #f0f4f8; }
+  .sum-vendor-row:last-child { border-bottom: none; }
+  .sv-name { flex: 1; font-size: 13px; font-weight: 600; color: #2d3748; }
+  .sv-cat { font-size: 11px; color: #a0aec0; margin-left: 6px; }
+  .sv-bar-wrap { width: 100px; height: 6px; background: #edf2f7; border-radius: 3px; margin: 0 12px; }
+  .sv-bar { height: 6px; border-radius: 3px; }
+  .sv-amt { font-size: 13px; font-weight: 700; color: #553c9a; white-space: nowrap; min-width: 80px; text-align: right; }
+  .sv-count { font-size: 11px; color: #a0aec0; margin-left: 6px; white-space: nowrap; }
+
+  .filter-chip-summary { display:inline-flex; align-items:center; gap:6px; background:#553c9a; color:white; padding:4px 10px; border-radius:20px; font-size:11px; font-weight:700; margin-right:6px; margin-bottom:4px; }
+
+  /* Comparison cards */
+  .compare-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:10px; margin-bottom:14px; }
+  .cmp-card { border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; background:white; }
+  .cmp-card .cc-label { font-size:11px; color:#718096; font-weight:700; margin-bottom:4px; }
+  .cmp-card .cc-amt { font-size:17px; font-weight:800; color:#2d3748; }
+  .cmp-card .cc-sub { font-size:11px; color:#a0aec0; margin-top:2px; }
+  .cmp-card .cc-change { display:inline-block; padding:1px 7px; border-radius:10px; font-size:11px; font-weight:700; margin-top:4px; }
+  .cmp-card .up { background:#fff5f5; color:#c53030; }
+  .cmp-card .down { background:#f0fff4; color:#276749; }
+  .cmp-card .flat { background:#edf2f7; color:#718096; }
+
+  /* Trend chart */
+  .trend-chart { background:#f7fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; margin-bottom:14px; overflow-x:auto; }
+  .trend-bars { display:flex; align-items:flex-end; gap:4px; height:120px; min-width:300px; }
+  .trend-bar-col { flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; min-width:30px; cursor:default; position:relative; }
+  .trend-bar { width:100%; min-height:2px; background:linear-gradient(180deg, #667eea, #764ba2); border-radius:3px 3px 0 0; transition:opacity 0.15s; position:relative; }
+  .trend-bar:hover { opacity:0.8; }
+  .trend-bar-label { font-size:9px; color:#a0aec0; white-space:nowrap; transform:rotate(-30deg); transform-origin:left top; }
+  .trend-bar-amt { font-size:9px; color:#553c9a; font-weight:700; white-space:nowrap; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>📋 账单追踪器</h1>
+  <p>外包工 · 卸货工 · Staffing X · HR NATION LLC · JBL · PEAK · Super Clean · King Clean · Pacific Coast ｜ <a href="charts.html" style="color:white;text-decoration:underline;font-weight:600;opacity:0.95">📊 查看可视化图表 →</a></p>
+  <div style="margin-top:10px"><span id="sync-indicator" onclick="initFromCloud()" title="点击立即同步" style="background:#edf2f7;color:#4a5568">⊘ 未连接</span></div>
+</div>
+
+<div class="stats">
+  <div class="stat-card" style="background:#f7fafc;color:#4a5568"><div class="val" id="s-draft" style="color:#4a5568">0</div><div class="lbl">📝 未提交</div></div>
+  <div class="stat-card" style="background:#ebf8ff;color:#2b6cb0"><div class="val" id="s-submitted" style="color:#2b6cb0">0</div><div class="lbl">📨 已提交</div></div>
+  <div class="stat-card warn"><div class="val" id="s-unpaid">0</div><div class="lbl">⏰ 待支付</div></div>
+  <div class="stat-card danger"><div class="val" id="s-overdue">0</div><div class="lbl">⚠️ 已逾期</div></div>
+  <div class="stat-card ok"><div class="val" id="s-paid">0</div><div class="lbl">✓ 已支付</div></div>
+  <div class="stat-card"><div class="val" id="s-amount">$0</div><div class="lbl">未付总金额</div></div>
+</div>
+
+<div class="quickbar">
+  <span class="quickbar-label">⚡ 快速生成：</span>
+  <button class="qbtn" onclick="openQuick()">＋ 本周账单（外包工 · 卸货工 · Staffing X · HR NATION · JBL · PEAK）</button>
+</div>
+
+<div class="toolbar">
+  <select id="filter-week"><option value="">全部服务周</option></select>
+  <select id="filter-invoice">
+    <option value="">所有账单号</option>
+    <option value="SE-">Staffing X (SE-)</option>
+    <option value="3">HR NATION LLC (3...)</option>
+    <option value="TX001-">JBL/PEAK TX (TX001-)</option>
+    <option value="CA008-">JBL CA (CA008-)</option>
+    <option value="O-">Pacific Coast (O-)</option>
+    <option value="HOU0">King Clean (HOU0)</option>
+    <option value="015">Super Clean (015)</option>
+  </select>
+  <select id="filter-status">
+    <option value="">全部状态</option>
+    <option value="draft">未提交</option>
+    <option value="submitted">已提交</option>
+    <option value="unpaid">待支付</option>
+    <option value="paid">已支付</option>
+    <option value="overdue">已逾期</option>
+  </select>
+  <select id="filter-category">
+    <option value="">全部类型</option>
+    <option>外包工</option>
+    <option>卸货工</option>
+    <option>煤气费</option>
+    <option>卫生费</option>
+    <option>月租费</option>
+    <option>其他</option>
+  </select>
+  <input type="text" id="filter-vendor" placeholder="🔍 搜索供应商..." style="min-width:130px">
+  <button class="btn btn-primary ml-auto" onclick="openModal()">＋ 手动添加</button>
+  <button onclick="showDuplicates()" style="padding:7px 13px;border-radius:8px;border:1.5px solid #ed8936;background:#fffbeb;color:#c05621;font-size:13px;font-weight:600;cursor:pointer">🔍 查重</button>
+  <button onclick="importData()" style="padding:7px 13px;border-radius:8px;border:1.5px solid #4299e1;background:#ebf8ff;color:#2b6cb0;font-size:13px;font-weight:600;cursor:pointer">📥 导入</button>
+  <button onclick="exportData()" style="padding:7px 13px;border-radius:8px;border:1.5px solid #38a169;background:#f0fff4;color:#276749;font-size:13px;font-weight:600;cursor:pointer">📤 导出</button>
+</div>
+
+<div id="bill-list"></div>
+
+<div class="summary-panel">
+  <div class="summary-header" onclick="toggleSummary()">
+    <h3>📊 账单汇总</h3>
+    <span style="font-size:12px;opacity:0.85" id="summary-period-label">全部</span>
+    <span style="font-size:12px;opacity:0.7" id="summary-toggle-icon">▲</span>
+  </div>
+  <div id="summary-content">
+    <div class="summary-filters">
+      <div class="sf-group">
+        <label>🏢 仓库</label>
+        <select id="sum-warehouse" onchange="renderSummary()">
+          <option value="">全部仓库</option>
+          <option>TX001</option>
+          <option>CA008</option>
+          <option>GA006</option>
+        </select>
+      </div>
+      <div class="sf-group">
+        <label>📦 服务周期</label>
+        <select id="sum-week" onchange="renderSummary()">
+          <option value="">全部周期</option>
+        </select>
+      </div>
+      <div class="sf-group">
+        <label>🏷️ 账单类型</label>
+        <select id="sum-category" onchange="renderSummary()">
+          <option value="">全部类型</option>
+          <option>外包工</option>
+          <option>卸货工</option>
+          <option>煤气费</option>
+          <option>卫生费</option>
+          <option>月租费</option>
+          <option>其他</option>
+        </select>
+      </div>
+      <div class="sf-group">
+        <label>👤 供应商</label>
+        <select id="sum-vendor" onchange="renderSummary()">
+          <option value="">全部供应商</option>
+        </select>
+      </div>
+      <div class="sf-group">
+        <label>📅 起始日期</label>
+        <input type="date" id="sum-date-from" onchange="onDateRangeChange()">
+      </div>
+      <div class="sf-group">
+        <label>📅 结束日期</label>
+        <input type="date" id="sum-date-to" onchange="onDateRangeChange()">
+      </div>
+      <div class="sf-group">
+        <label>⏱️ 快捷时段</label>
+        <div class="sf-quickbtns">
+          <button class="sf-quick active" onclick="setQuickRange('all')" id="qr-all">全部</button>
+          <button class="sf-quick" onclick="setQuickRange('week')" id="qr-week">本周</button>
+          <button class="sf-quick" onclick="setQuickRange('month')" id="qr-month">本月</button>
+          <button class="sf-quick" onclick="setQuickRange('lastmonth')" id="qr-lastmonth">上月</button>
+          <button class="sf-quick" onclick="setQuickRange('q')" id="qr-q">本季度</button>
+          <button class="sf-quick" onclick="setQuickRange('ytd')" id="qr-ytd">今年</button>
+        </div>
+      </div>
+      <button class="sf-reset" onclick="resetSummaryFilters()">↺ 重置</button>
+    </div>
+    <div class="summary-body" id="summary-body"></div>
+  </div>
+</div>
+
+<!-- 手动添加/编辑 Modal -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h2 id="modal-title">📄 添加账单</h2>
+    <input type="hidden" id="f-edit-id">
+
+    <div class="form-section">
+      <div class="form-section-title">供应商信息</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>供应商 *</label>
+          <input type="text" id="f-vendor" list="vendor-list" placeholder="选择或输入">
+          <datalist id="vendor-list">
+            <option value="外包工">
+            <option value="卸货工">
+            <option value="Staffing X">
+            <option value="HR NATION LLC">
+            <option value="JBL">
+            <option value="PEAK">
+            <option value="Super Clean">
+            <option value="King Clean">
+            <option value="Pacific Coast">
+          </datalist>
+        </div>
+        <div class="form-group">
+          <label>账单类型</label>
+          <select id="f-category">
+            <option>外包工</option>
+            <option>卸货工</option>
+            <option>煤气费</option>
+            <option>卫生费</option>
+            <option>月租费</option>
+            <option>其他</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Invoice #</label>
+          <input type="text" id="f-invoice" placeholder="e.g. INV-2026-001">
+        </div>
+        <div class="form-group">
+          <label>仓库</label>
+          <select id="f-warehouse">
+            <option value="">— 不指定 —</option>
+            <option>TX001</option>
+            <option>CA008</option>
+            <option>GA006</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>金额 ($) *</label>
+        <input type="number" id="f-amount" placeholder="0.00" min="0" step="0.01">
+      </div>
+    </div>
+
+    <div class="form-section">
+      <div class="form-section-title">服务周期</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>开始日期（周一）</label>
+          <input type="date" id="f-period-start" oninput="onPeriodStartChange()">
+        </div>
+        <div class="form-group">
+          <label>结束日期 <span class="auto-hint" id="period-end-hint">自动</span></label>
+          <input type="date" id="f-period-end" oninput="onPeriodEndManual()">
+        </div>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <div class="form-section-title">账单日期 & 付款</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>账单日期 * <span class="auto-hint" id="bill-date-hint">自动</span></label>
+          <input type="date" id="f-date" oninput="onBillDateManual()" onchange="autoFillDue()">
+        </div>
+        <div class="form-group">
+          <label>账期 (Net)</label>
+          <select id="f-net" onchange="autoFillDue()">
+            <option value="">— 不指定 —</option>
+            <option value="7">Net 7</option>
+            <option value="10">Net 10</option>
+            <option value="15">Net 15</option>
+            <option value="30">Net 30</option>
+            <option value="45">Net 45</option>
+            <option value="60">Net 60</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>截止日期 <span class="auto-hint" id="due-hint">自动</span></label>
+          <input type="date" id="f-due" oninput="onDueManual()">
+        </div>
+        <div class="form-group">
+          <label>支付方式</label>
+          <select id="f-method">
+            <option>ACH / Wire</option>
+            <option>Check</option>
+            <option>Cash</option>
+            <option>Credit Card</option>
+            <option>其他</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>账单状态</label>
+        <select id="f-status">
+          <option value="draft">📝 未提交</option>
+          <option value="submitted">📨 已提交</option>
+          <option value="unpaid" selected>⏰ 待支付</option>
+          <option value="paid">✓ 已支付</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <div class="form-section-title">备注</div>
+      <div class="form-group">
+        <input type="text" id="f-note" placeholder="可选备注">
+      </div>
+    </div>
+
+    <div class="modal-btns">
+      <button class="btn" style="background:#edf2f7;color:#4a5568" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveBill()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 快速生成 Modal -->
+<div class="modal-overlay" id="quick-modal">
+  <div class="modal">
+    <h2>⚡ 生成本周账单</h2>
+    <p style="font-size:12px;color:#718096;margin-bottom:12px">勾选供应商，填入金额，一键添加</p>
+    <div class="checklist" id="quick-checklist"></div>
+    <div class="form-section">
+      <div class="form-section-title">服务周期</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>开始（周一）</label>
+          <input type="date" id="q-period-start" onchange="onQuickPeriodStartChange()">
+        </div>
+        <div class="form-group">
+          <label>结束（周日）<span class="auto-hint">自动</span></label>
+          <input type="date" id="q-period-end">
+        </div>
+      </div>
+    </div>
+    <div class="form-section">
+      <div class="form-section-title">账单日期 & 付款</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>账单日期 <span class="auto-hint">自动</span></label>
+          <input type="date" id="q-date" onchange="autoFillQuickDue()">
+        </div>
+        <div class="form-group">
+          <label>账期 (Net)</label>
+          <select id="q-net" onchange="autoFillQuickDue()">
+            <option value="">— 不指定 —</option>
+            <option value="7">Net 7</option>
+            <option value="10">Net 10</option>
+            <option value="15">Net 15</option>
+            <option value="30" selected>Net 30</option>
+            <option value="45">Net 45</option>
+            <option value="60">Net 60</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>截止日期 <span class="auto-hint">自动</span></label>
+        <input type="date" id="q-due">
+      </div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn" style="background:#edf2f7;color:#4a5568" onclick="closeQuick()">取消</button>
+      <button class="btn btn-primary" onclick="generateQuick()">✓ 一键生成</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'bills_v3';
+
+const WEEKLY_VENDORS = [
+  { vendor:'外包工',       category:'外包工', method:'Cash',  note:'' },
+  { vendor:'卸货工',       category:'卸货工', method:'Cash',  note:'' },
+  { vendor:'Staffing X',   category:'外包工', method:'ACH / Wire', note:'' },
+  { vendor:'HR NATION LLC',category:'外包工', method:'ACH / Wire', note:'' },
+  { vendor:'JBL',          category:'外包工', method:'ACH / Wire', note:'' },
+  { vendor:'PEAK',         category:'外包工', method:'ACH / Wire', note:'' },
+];
+
+const CAT_COLORS = { '外包工':'cat-0','卸货工':'cat-1','月租费':'cat-2','煤气费':'cat-3','卫生费':'cat-4','其他':'cat-5' };
+const CAT_HEX    = { '外包工':'#553c9a','卸货工':'#c05621','月租费':'#2b6cb0','煤气费':'#276749','卫生费':'#822727','其他':'#4a5568' };
+
+const SEED_DATA = [{"id":1,"vendor":"HR NATION LLC","invoice":"3601","warehouse":"TX001","category":"外包工","amount":5198.75,"date":"2025-01-06","due":"2025-01-21","method":"ACH / Wire","note":"","status":"paid","periodStart":"2025-12-29","periodEnd":"2026-01-04","net":"15"},{"id":2,"vendor":"HR NATION LLC","invoice":"3600","warehouse":"CA008","category":"外包工","amount":13035.19,"date":"2026-01-06","periodStart":"2025-12-29","periodEnd":"2026-01-04","net":"15","due":"2026-01-21","method":"ACH / Wire","note":"","status":"paid"},{"id":3,"vendor":"Staffing X","invoice":"SE-0095-TX001","warehouse":"TX001","category":"外包工","amount":2290,"date":"2026-01-06","periodStart":"2025-12-29","periodEnd":"2026-01-04","net":"","due":"2026-01-21","method":"ACH / Wire","note":"","status":"paid"},{"id":4,"vendor":"Staffing X","invoice":"SE-0096-TX001","warehouse":"TX001","category":"外包工","amount":3052.53,"date":"2026-01-12","periodStart":"2026-01-05","periodEnd":"2026-01-11","net":"30","due":"2026-02-11","method":"ACH / Wire","note":"","status":"paid"},{"id":5,"vendor":"JBL","invoice":"CA008-0038","warehouse":"CA008","category":"卸货工","amount":5430,"date":"2026-01-12","periodStart":"2026-01-05","periodEnd":"2026-01-11","net":"30","due":"2026-02-11","method":"ACH / Wire","note":"","status":"paid"},{"id":6,"vendor":"JBL","invoice":"TX001-0014","warehouse":"TX001","category":"卸货工","amount":2660,"date":"2026-01-12","periodStart":"2026-01-05","periodEnd":"2026-01-11","net":"30","due":"2026-02-11","method":"ACH / Wire","note":"","status":"paid"},{"id":7,"vendor":"HR NATION LLC","invoice":"3608","warehouse":"CA008","category":"外包工","amount":15911.41,"date":"2026-01-12","periodStart":"2026-01-05","periodEnd":"2026-01-11","net":"30","due":"2026-02-11","method":"ACH / Wire","note":"","status":"paid"},{"id":8,"vendor":"HR NATION LLC","invoice":"3609","warehouse":"TX001","category":"外包工","amount":6471.44,"date":"2026-01-12","periodStart":"2026-01-05","periodEnd":"2026-01-11","net":"30","due":"2026-02-11","method":"ACH / Wire","note":"","status":"paid"},{"id":9,"vendor":"HR NATION LLC","invoice":"3616","warehouse":"CA008","category":"外包工","amount":16412.41,"date":"2026-01-13","periodStart":"2026-01-12","periodEnd":"2026-01-18","net":"15","due":"2026-01-28","method":"ACH / Wire","note":"","status":"paid"},{"id":10,"vendor":"HR NATION LLC","invoice":"3617","warehouse":"TX001","category":"外包工","amount":7252.97,"date":"2026-01-13","periodStart":"2026-01-12","periodEnd":"2026-01-18","net":"30","due":"2026-02-12","method":"ACH / Wire","note":"","status":"paid"},{"id":11,"vendor":"HR NATION LLC","invoice":"3614","warehouse":"TX001","category":"卸货工","amount":1340,"date":"2026-01-13","periodStart":"2026-01-12","periodEnd":"2026-01-18","net":"30","due":"2026-02-12","method":"ACH / Wire","note":"","status":"paid"},{"id":12,"vendor":"Staffing X","invoice":"SE-0100-TX001","warehouse":"TX001","category":"外包工","amount":2377.44,"date":"2026-01-13","periodStart":"2026-01-12","periodEnd":"2026-01-18","net":"30","due":"2026-02-12","method":"ACH / Wire","note":"","status":"paid"},{"id":13,"vendor":"JBL","invoice":"TX001-0015","warehouse":"TX001","category":"卸货工","amount":3060,"date":"2026-01-21","periodStart":"2026-01-12","periodEnd":"2026-01-18","net":"30","due":"2026-02-20","method":"ACH / Wire","note":"","status":"paid"},{"id":14,"vendor":"JBL","invoice":"CA008-0039","warehouse":"CA008","category":"卸货工","amount":4680,"date":"2026-01-13","periodStart":"2026-01-12","periodEnd":"2026-01-18","net":"30","due":"2026-02-12","method":"ACH / Wire","note":"","status":"paid"},{"id":15,"vendor":"JBL","invoice":"CA008-0040","warehouse":"CA008","category":"卸货工","amount":3390,"date":"2026-01-26","periodStart":"2026-01-19","periodEnd":"2026-01-25","net":"30","due":"2026-02-25","method":"ACH / Wire","note":"","status":"paid"},{"id":16,"vendor":"JBL","invoice":"TX001-0016","warehouse":"TX001","category":"卸货工","amount":1710,"date":"2026-01-26","periodStart":"2026-01-19","periodEnd":"2026-01-25","net":"30","due":"2026-02-25","method":"ACH / Wire","note":"","status":"paid"},{"id":17,"vendor":"Staffing X","invoice":"SE-0103 - TX001","warehouse":"TX001","category":"外包工","amount":2155.32,"date":"2026-01-26","periodStart":"2026-01-19","periodEnd":"2026-01-25","net":"30","due":"2026-02-25","method":"ACH / Wire","note":"","status":"paid"},{"id":18,"vendor":"Super Clean","invoice":"015..1","warehouse":"CA008","category":"卫生费","amount":465,"date":"2026-01-02","periodStart":"2025-12-01","periodEnd":"2025-12-31","net":"30","due":"2026-02-01","method":"ACH / Wire","note":"","status":"paid"},{"id":19,"vendor":"HR NATION LLC","invoice":"3622","warehouse":"TX001","category":"卸货工","amount":1520,"date":"2026-01-27","periodStart":"2026-01-19","periodEnd":"2026-01-25","net":"30","due":"2026-02-26","method":"ACH / Wire","note":"","status":"paid"},{"id":20,"vendor":"HR NATION LLC","invoice":"3625","warehouse":"TX001","category":"外包工","amount":9229.73,"date":"2026-01-21","periodStart":"2026-01-19","periodEnd":"2026-01-25","net":"30","due":"2026-02-20","method":"ACH / Wire","note":"","status":"paid"},{"id":21,"vendor":"HR NATION LLC","invoice":"3624","warehouse":"CA008","category":"外包工","amount":13833.76,"date":"2026-01-27","periodStart":"2026-01-19","periodEnd":"2026-01-25","net":"30","due":"2026-02-26","method":"ACH / Wire","note":"","status":"paid"},{"id":22,"vendor":"JBL","invoice":"CA008-0041","warehouse":"CA008","category":"卸货工","amount":2910,"date":"2026-01-27","periodStart":"2026-01-19","periodEnd":"2026-01-25","net":"30","due":"2026-02-26","method":"ACH / Wire","note":"","status":"paid"},{"id":23,"vendor":"JBL","invoice":"TX001-0017","warehouse":"TX001","category":"卸货工","amount":1140,"date":"2026-01-27","periodStart":"2026-01-19","periodEnd":"2026-01-25","net":"30","due":"2026-02-26","method":"ACH / Wire","note":"","status":"paid"},{"id":24,"vendor":"Pacific Coast","invoice":"O-20188","warehouse":"CA008","category":"煤气费","amount":874.67,"date":"2026-01-01","periodStart":"2025-12-01","periodEnd":"2025-12-31","net":"30","due":"2026-01-31","method":"ACH / Wire","note":"","status":"paid"},{"id":25,"vendor":"Staffing X","invoice":"SE-0106","warehouse":"TX001","category":"外包工","amount":1986.12,"date":"2026-02-01","periodStart":"2026-01-26","periodEnd":"2026-02-01","net":"30","due":"2026-03-03","method":"ACH / Wire","note":"","status":"paid"},{"id":26,"vendor":"HR NATION LLC","invoice":"3631","warehouse":"CA008","category":"外包工","amount":12636.03,"date":"2026-02-03","periodStart":"2026-01-26","periodEnd":"2026-02-01","net":"30","due":"2026-03-05","method":"ACH / Wire","note":"","status":"paid"},{"id":27,"vendor":"HR NATION LLC","invoice":"3629","warehouse":"TX001","category":"外包工","amount":190,"date":"2026-02-03","periodStart":"2026-01-26","periodEnd":"2026-02-01","net":"30","due":"2026-03-05","method":"ACH / Wire","note":"","status":"paid"},{"id":28,"vendor":"HR NATION LLC","invoice":"3632","warehouse":"TX001","category":"外包工","amount":9412.24,"date":"2026-02-03","periodStart":"2026-01-26","periodEnd":"2026-02-01","net":"30","due":"2026-03-05","method":"ACH / Wire","note":"","status":"paid"},{"id":29,"vendor":"JBL","invoice":"TX001-0018","warehouse":"TX001","category":"卸货工","amount":2090,"date":"2026-02-10","periodStart":"2026-02-02","periodEnd":"2026-02-08","net":"30","due":"2026-03-12","method":"ACH / Wire","note":"","status":"paid"},{"id":30,"vendor":"JBL","invoice":"CA008-0042","warehouse":"CA008","category":"卸货工","amount":2500,"date":"2026-02-10","periodStart":"2026-02-02","periodEnd":"2026-02-08","net":"30","due":"2026-03-12","method":"ACH / Wire","note":"","status":"paid"},{"id":31,"vendor":"Staffing X","invoice":"SE-0109","warehouse":"TX001","category":"外包工","amount":1805.44,"date":"2026-02-10","periodStart":"2026-02-02","periodEnd":"2026-02-08","net":"30","due":"2026-03-12","method":"ACH / Wire","note":"","status":"paid"},{"id":32,"vendor":"HR NATION LLC","invoice":"3639","warehouse":"TX001","category":"外包工","amount":8650,"date":"2026-02-10","periodStart":"2026-02-02","periodEnd":"2026-02-08","net":"30","due":"2026-03-12","method":"Check","note":"","status":"paid"},{"id":33,"vendor":"HR NATION LLC","invoice":"3638","warehouse":"CA008","category":"外包工","amount":11388.05,"date":"2026-02-10","periodStart":"2026-02-02","periodEnd":"2026-02-08","net":"30","due":"2026-03-12","method":"ACH / Wire","note":"","status":"paid"},{"id":34,"vendor":"Staffing X","invoice":"SE-0114","warehouse":"TX001","category":"外包工","amount":1956.42,"date":"2026-02-17","periodStart":"2026-02-09","periodEnd":"2026-02-15","net":"30","due":"2026-03-19","method":"ACH / Wire","note":"","status":"paid"},{"id":35,"vendor":"HR NATION LLC","invoice":"3645","warehouse":"CA008","category":"外包工","amount":10385.64,"date":"2026-02-17","periodStart":"2026-02-09","periodEnd":"2026-02-15","net":"30","due":"2026-03-19","method":"ACH / Wire","note":"","status":"paid"},{"id":36,"vendor":"HR NATION LLC","invoice":"3646","warehouse":"TX001","category":"外包工","amount":10468.11,"date":"2026-02-17","periodStart":"2026-02-09","periodEnd":"2026-02-15","net":"30","due":"2026-03-19","method":"ACH / Wire","note":"","status":"paid"},{"id":37,"vendor":"HR NATION LLC","invoice":"3643","warehouse":"TX001","category":"卸货工","amount":1900,"date":"2026-02-17","periodStart":"2026-02-09","periodEnd":"2026-02-15","net":"30","due":"2026-03-19","method":"ACH / Wire","note":"","status":"paid"},{"id":38,"vendor":"JBL","invoice":"TX001-0019","warehouse":"TX001","category":"卸货工","amount":950,"date":"2026-02-17","periodStart":"2026-02-09","periodEnd":"2026-02-15","net":"30","due":"2026-03-19","method":"ACH / Wire","note":"","status":"paid"},{"id":39,"vendor":"JBL","invoice":"CA008-0043","warehouse":"CA008","category":"卸货工","amount":1710,"date":"2026-02-17","periodStart":"2026-02-09","periodEnd":"2026-02-15","net":"30","due":"2026-03-19","method":"ACH / Wire","note":"","status":"paid"},{"id":40,"vendor":"Staffing X","invoice":"SE-0115","warehouse":"TX001","category":"外包工","amount":1098.62,"date":"2026-02-17","periodStart":"2026-02-09","periodEnd":"2026-02-15","net":"30","due":"2026-03-19","method":"ACH / Wire","note":"","status":"paid"},{"id":41,"vendor":"Super Clean","invoice":"016..1","warehouse":"CA008","category":"卫生费","amount":465,"date":"2026-02-02","periodStart":"2026-01-01","periodEnd":"2026-01-31","net":"30","due":"2026-03-04","method":"ACH / Wire","note":"","status":"paid"},{"id":42,"vendor":"King Clean","invoice":"HOU03260372","warehouse":"TX001","category":"卫生费","amount":541.25,"date":"2026-03-02","periodStart":"2026-02-01","periodEnd":"2026-02-28","net":"30","due":"2026-04-01","method":"ACH / Wire","note":"3月","status":"paid"},{"id":43,"vendor":"JBL","invoice":"TX001-0020","warehouse":"TX001","category":"卸货工","amount":980,"date":"2026-03-03","periodStart":"2026-02-23","periodEnd":"2026-03-01","net":"30","due":"2026-04-02","method":"Check","note":"","status":"paid"},{"id":44,"vendor":"JBL","invoice":"CA008-0044","warehouse":"CA008","category":"卸货工","amount":2690,"date":"2026-03-03","periodStart":"2026-02-23","periodEnd":"2026-03-01","net":"30","due":"2026-04-02","method":"ACH / Wire","note":"","status":"paid"},{"id":45,"vendor":"HR NATION LLC","invoice":"3650","warehouse":"TX001","category":"卸货工","amount":1900,"date":"2026-02-24","periodStart":"2026-02-16","periodEnd":"2026-02-22","net":"30","due":"2026-03-26","method":"ACH / Wire","note":"","status":"paid"},{"id":46,"vendor":"HR NATION LLC","invoice":"3653","warehouse":"TX001","category":"外包工","amount":14920,"date":"2026-02-24","periodStart":"2026-02-16","periodEnd":"2026-02-22","net":"30","due":"2026-03-26","method":"ACH / Wire","note":"","status":"paid"},{"id":47,"vendor":"HR NATION LLC","invoice":"3652","warehouse":"CA008","category":"外包工","amount":9743,"date":"2026-02-24","periodStart":"2026-02-16","periodEnd":"2026-02-22","net":"30","due":"2026-03-26","method":"ACH / Wire","note":"","status":"paid"},{"id":48,"vendor":"Pacific Coast","invoice":"O-29112","warehouse":"CA008","category":"煤气费","amount":693.85,"date":"2026-03-02","periodStart":"2026-02-01","periodEnd":"2026-02-28","net":"30","due":"2026-04-01","method":"ACH / Wire","note":"","status":"paid"},{"id":49,"vendor":"HR NATION LLC","invoice":"3659","warehouse":"CA008","category":"外包工","amount":9732.46,"date":"2026-03-03","periodStart":"2026-02-23","periodEnd":"2026-03-01","net":"30","due":"2026-04-02","method":"ACH / Wire","note":"","status":"paid"},{"id":50,"vendor":"JBL","invoice":"TX001-0021","warehouse":"TX001","category":"卸货工","amount":1330,"date":"2026-03-10","periodStart":"2026-03-02","periodEnd":"2026-03-08","net":"30","due":"2026-04-09","method":"ACH / Wire","note":"","status":"paid"},{"id":51,"vendor":"卸货工","invoice":"CA008-0045","warehouse":"CA008","category":"卸货工","amount":440,"date":"2026-03-10","periodStart":"2026-03-02","periodEnd":"2026-03-08","net":"30","due":"2026-04-09","method":"ACH / Wire","note":"","status":"paid"},{"id":52,"vendor":"PEAK","invoice":"2258","warehouse":"TX001","category":"卸货工","amount":1710,"date":"2026-03-10","periodStart":"2026-03-02","periodEnd":"2026-03-08","net":"30","due":"2026-04-09","method":"ACH / Wire","note":"","status":"paid"},{"id":53,"vendor":"HR NATION LLC","invoice":"3677","warehouse":"TX001","category":"外包工","amount":23207.83,"date":"2026-03-10","periodStart":"2026-03-02","periodEnd":"2026-03-08","net":"30","due":"2026-04-09","method":"ACH / Wire","note":"","status":"paid"},{"id":54,"vendor":"HR NATION LLC","invoice":"3676","warehouse":"CA008","category":"外包工","amount":11550.92,"date":"2026-03-10","periodStart":"2026-03-02","periodEnd":"2026-03-08","net":"30","due":"2026-04-09","method":"Check","note":"","status":"paid"},{"id":55,"vendor":"HR NATION LLC","invoice":"3674","warehouse":"TX001","category":"外包工","amount":3040,"date":"2026-03-10","periodStart":"2026-03-02","periodEnd":"2026-03-08","net":"30","due":"2026-04-09","method":"ACH / Wire","note":"","status":"paid"},{"id":56,"vendor":"HR NATION LLC","invoice":"3716","warehouse":"TX001","category":"卸货工","amount":1140,"date":"2026-04-21","periodStart":"2026-04-13","periodEnd":"2026-04-19","net":"30","due":"2026-05-21","method":"ACH / Wire","note":"","status":"paid"},{"id":57,"vendor":"HR NATION LLC","invoice":"3719","warehouse":"TX001","category":"外包工","amount":23308.76,"date":"2026-04-21","periodStart":"2026-04-13","periodEnd":"2026-04-19","net":"15","due":"2026-05-06","method":"ACH / Wire","note":"","status":"paid"},{"id":58,"vendor":"JBL","invoice":"CA008-0046","warehouse":"CA008","category":"卸货工","amount":2310,"date":"2026-03-17","periodStart":"2026-03-09","periodEnd":"2026-03-15","net":"30","due":"2026-04-16","method":"ACH / Wire","note":"","status":"paid"},{"id":59,"vendor":"JBL","invoice":"CA008-0047","warehouse":"CA008","category":"卸货工","amount":2280,"date":"2026-03-24","periodStart":"2026-03-16","periodEnd":"2026-03-22","net":"30","due":"2026-04-23","method":"ACH / Wire","note":"","status":"paid"},{"id":60,"vendor":"JBL","invoice":"CA008-0048","warehouse":"CA008","category":"卸货工","amount":3980,"date":"2026-03-31","periodStart":"2026-03-23","periodEnd":"2026-03-29","net":"30","due":"2026-04-30","method":"ACH / Wire","note":"","status":"paid"},{"id":61,"vendor":"JBL","invoice":"CA008-0049","warehouse":"CA008","category":"卸货工","amount":3070,"date":"2026-04-07","periodStart":"2026-03-30","periodEnd":"2026-04-05","net":"30","due":"2026-05-07","method":"ACH / Wire","note":"","status":"paid"},{"id":62,"vendor":"JBL","invoice":"CA008-0050","warehouse":"CA008","category":"卸货工","amount":6870,"date":"2026-04-14","periodStart":"2026-04-06","periodEnd":"2026-04-12","net":"30","due":"2026-05-14","method":"ACH / Wire","note":"","status":"paid"},{"id":63,"vendor":"JBL","invoice":"TX001-0022","warehouse":"TX001","category":"卸货工","amount":2910,"date":"2026-03-17","periodStart":"2026-03-09","periodEnd":"2026-03-15","net":"30","due":"2026-04-16","method":"ACH / Wire","note":"","status":"paid"},{"id":64,"vendor":"JBL","invoice":"TX001-0023","warehouse":"TX001","category":"卸货工","amount":2280,"date":"2026-03-24","periodStart":"2026-03-16","periodEnd":"2026-03-22","net":"30","due":"2026-04-23","method":"ACH / Wire","note":"","status":"paid"},{"id":65,"vendor":"JBL","invoice":"TX001-0024","warehouse":"TX001","category":"卸货工","amount":2780,"date":"2026-03-31","periodStart":"2026-03-23","periodEnd":"2026-03-29","net":"30","due":"2026-04-30","method":"ACH / Wire","note":"","status":"paid"},{"id":66,"vendor":"JBL","invoice":"TX001-0025","warehouse":"TX001","category":"卸货工","amount":3570,"date":"2026-04-07","periodStart":"2026-03-30","periodEnd":"2026-04-05","net":"30","due":"2026-05-07","method":"ACH / Wire","note":"","status":"paid"},{"id":67,"vendor":"JBL","invoice":"TX001-0026","warehouse":"TX001","category":"卸货工","amount":3700,"date":"2026-04-14","periodStart":"2026-04-06","periodEnd":"2026-04-12","net":"30","due":"2026-05-14","method":"ACH / Wire","note":"","status":"paid"},{"id":68,"vendor":"JBL","invoice":"TX001-0027","warehouse":"TX001","category":"卸货工","amount":2600,"date":"2026-04-21","periodStart":"2026-04-13","periodEnd":"2026-04-19","net":"30","due":"2026-05-21","method":"ACH / Wire","note":"","status":"paid"},{"id":69,"vendor":"HR NATION LLC","invoice":"3683","warehouse":"CA008","category":"外包工","amount":10749.12,"date":"2026-03-17","periodStart":"2026-03-09","periodEnd":"2026-03-15","net":"15","due":"2026-04-01","method":"ACH / Wire","note":"","status":"paid"},{"id":70,"vendor":"HR NATION LLC","invoice":"3690","warehouse":"CA008","category":"外包工","amount":10850.64,"date":"2026-03-24","periodStart":"2026-03-16","periodEnd":"2026-03-22","net":"15","due":"2026-04-08","method":"ACH / Wire","note":"","status":"paid"},{"id":71,"vendor":"HR NATION LLC","invoice":"3697","warehouse":"CA008","category":"外包工","amount":11322.19,"date":"2026-03-31","periodStart":"2026-03-23","periodEnd":"2026-03-29","net":"15","due":"2026-04-15","method":"ACH / Wire","note":"","status":"paid"},{"id":72,"vendor":"HR NATION LLC","invoice":"CA08-3704","warehouse":"CA008","category":"外包工","amount":9042.7,"date":"2026-04-07","periodStart":"2026-03-30","periodEnd":"2026-04-05","net":"15","due":"2026-04-22","method":"ACH / Wire","note":"","status":"paid"},{"id":73,"vendor":"HR NATION LLC","invoice":"3636","warehouse":"TX001","category":"卸货工","amount":570,"date":"2026-02-10","periodStart":"2026-02-02","periodEnd":"2026-02-08","net":"30","due":"2026-03-12","method":"ACH / Wire","note":"","status":"paid"},{"id":74,"vendor":"HR NATION LLC","invoice":"3660","warehouse":"TX001","category":"外包工","amount":15424.69,"date":"2026-03-03","periodStart":"2026-02-23","periodEnd":"2026-03-01","net":"15","due":"2026-03-18","method":"ACH / Wire","note":"","status":"paid"},{"id":75,"vendor":"HR NATION LLC","invoice":"3695","warehouse":"TX001","category":"卸货工","amount":2320,"date":"2026-03-31","periodStart":"2026-03-23","periodEnd":"2026-03-29","net":"30","due":"2026-04-30","method":"ACH / Wire","note":"","status":"paid"},{"id":76,"vendor":"HR NATION LLC","invoice":"3702","warehouse":"TX001","category":"卸货工","amount":760,"date":"2026-04-07","periodStart":"2026-03-30","periodEnd":"2026-04-05","net":"15","due":"2026-04-22","method":"ACH / Wire","note":"","status":"paid"},{"id":77,"vendor":"HR NATION LLC","invoice":"3681","warehouse":"TX001","category":"卸货工","amount":3460,"date":"2026-03-17","periodStart":"2026-03-09","periodEnd":"2026-03-15","net":"30","due":"2026-04-16","method":"ACH / Wire","note":"","status":"paid"},{"id":78,"vendor":"HR NATION LLC","invoice":"3698","warehouse":"TX001","category":"外包工","amount":23427.7,"date":"2026-03-31","periodStart":"2026-03-23","periodEnd":"2026-03-29","net":"30","due":"2026-04-30","method":"ACH / Wire","note":"","status":"paid"},{"id":79,"vendor":"HR NATION LLC","invoice":"3684","warehouse":"TX001","category":"外包工","amount":25344.92,"date":"2026-03-17","periodStart":"2026-03-09","periodEnd":"2026-03-15","net":"30","due":"2026-04-16","method":"ACH / Wire","note":"","status":"paid"},{"id":80,"vendor":"HR NATION LLC","invoice":"3705","warehouse":"TX001","category":"外包工","amount":22478.48,"date":"2026-04-07","periodStart":"2026-03-30","periodEnd":"2026-04-05","net":"30","due":"2026-05-07","method":"ACH / Wire","note":"","status":"paid"},{"id":81,"vendor":"HR NATION LLC","invoice":"3688","warehouse":"TX001","category":"卸货工","amount":3040,"date":"2026-03-24","periodStart":"2026-03-16","periodEnd":"2026-03-22","net":"30","due":"2026-04-23","method":"ACH / Wire","note":"","status":"paid"}];
+
+let bills = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+if (!bills) {
+  bills = SEED_DATA;
+} else {
+  const existingIds = new Set(bills.map(b=>b.id));
+  SEED_DATA.forEach(b=>{ if(!existingIds.has(b.id)) bills.push(b); });
+}
+localStorage.setItem(STORAGE_KEY, JSON.stringify(bills));
+let nextId = bills.length ? Math.max(...bills.map(b=>b.id))+1 : 1;
+
+
+// ═══ CLOUD SYNC CONFIG (Supabase) ═══
+const SUPABASE_URL = 'https://dcujngesbmgwtvsdqjfr.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_WCmimE1KRVmCyNO25D3NBw_CG3zux3W';
+const CLOUD_ENABLED = true;
+let syncStatus = 'idle'; // idle | syncing | error | offline
+let syncError = '';
+let saveDebounceTimer = null;
+
+async function cloudFetch() {
+  if (!CLOUD_ENABLED) return null;
+  try {
+    setSyncStatus('syncing', '正在拉取云端数据...');
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/bills?select=id,data`, {
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      }
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const rows = await resp.json();
+    // Each row has { id, data: {bill...} }
+    const cloudBills = rows.map(r => ({ ...r.data, id: r.id }));
+    setSyncStatus('idle', '已同步');
+    return cloudBills;
+  } catch (e) {
+    setSyncStatus('error', '云端读取失败：' + e.message);
+    return null;
+  }
+}
+
+async function cloudSaveBill(b) {
+  if (!CLOUD_ENABLED) return;
+  try {
+    setSyncStatus('syncing', '保存中...');
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/bills`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates,return=minimal'
+      },
+      body: JSON.stringify({ id: b.id, data: b, updated_at: new Date().toISOString() })
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status + ' ' + await resp.text());
+    setSyncStatus('idle', '已同步');
+  } catch (e) {
+    setSyncStatus('error', '保存失败：' + e.message);
+  }
+}
+
+async function cloudDeleteBill(id) {
+  if (!CLOUD_ENABLED) return;
+  try {
+    setSyncStatus('syncing', '删除中...');
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/bills?id=eq.${id}`, {
+      method: 'DELETE',
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    setSyncStatus('idle', '已同步');
+  } catch (e) {
+    setSyncStatus('error', '删除失败：' + e.message);
+  }
+}
+
+async function cloudSyncAll() {
+  if (!CLOUD_ENABLED) return;
+  try {
+    setSyncStatus('syncing', '正在上传全部账单...');
+    const payload = bills.map(b => ({ id: b.id, data: b, updated_at: new Date().toISOString() }));
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/bills`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates,return=minimal'
+      },
+      body: JSON.stringify(payload)
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status + ' ' + await resp.text());
+    setSyncStatus('idle', `已上传 ${bills.length} 条`);
+    setTimeout(()=>setSyncStatus('idle','已同步'), 2000);
+  } catch (e) {
+    setSyncStatus('error', '上传失败：' + e.message);
+  }
+}
+
+function setSyncStatus(status, msg) {
+  syncStatus = status;
+  syncError = msg || '';
+  const el = document.getElementById('sync-indicator');
+  if (!el) return;
+  const colors = {
+    idle:    { bg:'#f0fff4', color:'#276749', icon:'✓' },
+    syncing: { bg:'#fffbeb', color:'#92400e', icon:'⟳' },
+    error:   { bg:'#fff5f5', color:'#c53030', icon:'✕' },
+    offline: { bg:'#edf2f7', color:'#4a5568', icon:'⊘' }
+  };
+  const c = colors[status] || colors.idle;
+  el.style.background = c.bg;
+  el.style.color = c.color;
+  el.innerHTML = `<span style="display:inline-block;${status==='syncing'?'animation:spin 1s linear infinite;':''}">${c.icon}</span> ${msg}`;
+}
+
+// Initialize: fetch cloud data on page load
+async function initFromCloud() {
+  setSyncStatus('syncing', '正在同步...');
+  const cloudBills = await cloudFetch();
+  if (cloudBills === null) {
+    setSyncStatus('error', '云端连接失败，使用本地数据');
+    return;
+  }
+
+  // Smart merge: union of local + cloud, prefer the version with more fields
+  // or local version when IDs match (since local may have unsaved updates)
+  const merged = {};
+  cloudBills.forEach(b => { merged[b.id] = b; });
+  let localOnlyCount = 0;
+  bills.forEach(b => {
+    if (!merged[b.id]) {
+      // Local-only record → keep it, will be uploaded
+      merged[b.id] = b;
+      localOnlyCount++;
+    } else {
+      // Both have it → prefer local (might have unsynced changes)
+      // Compare by status: if local says "paid" and cloud doesn't, keep local
+      const cloudB = merged[b.id];
+      const localPaid = b.status === 'paid';
+      const cloudPaid = cloudB.status === 'paid';
+      // Keep whichever has paid status, or local by default
+      if (localPaid && !cloudPaid) {
+        merged[b.id] = b;
+      } else if (!localPaid && cloudPaid) {
+        // Cloud has paid status, keep cloud
+        merged[b.id] = cloudB;
+      } else {
+        // Tie: keep local (assume local edits are most recent)
+        merged[b.id] = b;
+      }
+    }
+  });
+
+  const mergedArr = Object.values(merged);
+  const changed = JSON.stringify(mergedArr.sort((a,b)=>a.id-b.id)) !==
+                  JSON.stringify([...bills].sort((a,b)=>a.id-b.id));
+
+  bills = mergedArr;
+  nextId = bills.length ? Math.max(...bills.map(b=>b.id))+1 : 1;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(bills));
+  render();
+
+  // If we have local records not in cloud, upload them now
+  if (localOnlyCount > 0 || changed) {
+    setSyncStatus('syncing', `合并完成，上传 ${localOnlyCount} 条本地新数据...`);
+    await cloudSyncAll();
+  } else {
+    setSyncStatus('idle', `已同步 ${bills.length} 条`);
+    setTimeout(()=>setSyncStatus('idle','✓ 已同步'), 2000);
+  }
+}
+
+
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(bills));
+  // Debounce cloud sync to batch rapid changes
+  clearTimeout(saveDebounceTimer);
+  saveDebounceTimer = setTimeout(async () => {
+    if (CLOUD_ENABLED) await cloudSyncAll();
+  }, 800);
+}
+
+// ── Date helpers ─────────────────────────────────
+function addDays(dateStr, n) {
+  const d = new Date(dateStr + 'T12:00:00');
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0,10);
+}
+function getMondayOf(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00');
+  const dow = d.getDay() || 7;
+  d.setDate(d.getDate() - (dow - 1));
+  return d.toISOString().slice(0,10);
+}
+function getWeekKey(dateStr) { return getMondayOf(dateStr); }
+function getPeriodWeekKey(b) { return getWeekKey(b.periodStart || b.date); }
+function getISOWeek(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00');
+  const tmp = new Date(d); tmp.setDate(d.getDate() + 4 - (d.getDay()||7));
+  const yearStart = new Date(tmp.getFullYear(), 0, 1);
+  const wk = Math.ceil(((tmp - yearStart)/86400000 + 1)/7);
+  return { year: tmp.getFullYear(), week: wk };
+}
+function getWeekLabel(wkKey) {
+  const sun = addDays(wkKey, 6);
+  const fmt = s => { const d=new Date(s+'T12:00:00'); return `${d.getMonth()+1}/${d.getDate()}`; };
+  const { year, week } = getISOWeek(wkKey);
+  return `${year}年 W${week} (${fmt(wkKey)}–${fmt(sun)})`;
+}
+function effectiveStatus(b) {
+  if (b.status==='paid') return 'paid';
+  if (b.status==='draft') return 'draft';
+  if (b.status==='submitted') return 'submitted';
+  if (b.due && new Date(b.due+'T23:59:59') < new Date()) return 'overdue';
+  return 'unpaid';
+}
+function fmtAmt(n) { return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmtPeriod(start, end) {
+  if (!start) return '—';
+  const fmt = s => { const d=new Date(s+'T12:00:00'); return `${d.getMonth()+1}/${d.getDate()}`; };
+  return end ? `${fmt(start)}–${fmt(end)}` : fmt(start);
+}
+
+// ── Render bills list ─────────────────────────────
+function render() {
+  const fw = document.getElementById('filter-week').value;
+  const fs = document.getElementById('filter-status').value;
+  const fv = document.getElementById('filter-vendor').value.trim().toLowerCase();
+  const fi = document.getElementById('filter-invoice').value;
+  const fc = document.getElementById('filter-category').value;
+
+  let filtered = bills.filter(b => {
+    if (fw && getPeriodWeekKey(b)!==fw) return false;
+    if (fs && effectiveStatus(b)!==fs) return false;
+    if (fv && !b.vendor.toLowerCase().includes(fv)) return false;
+    if (fi && !(b.invoice||'').startsWith(fi)) return false;
+    if (fc && b.category !== fc) return false;
+    return true;
+  });
+
+  document.getElementById('s-draft').textContent     = bills.filter(b=>effectiveStatus(b)==='draft').length;
+  document.getElementById('s-submitted').textContent = bills.filter(b=>effectiveStatus(b)==='submitted').length;
+  document.getElementById('s-unpaid').textContent    = bills.filter(b=>effectiveStatus(b)==='unpaid').length;
+  document.getElementById('s-overdue').textContent   = bills.filter(b=>effectiveStatus(b)==='overdue').length;
+  document.getElementById('s-paid').textContent      = bills.filter(b=>effectiveStatus(b)==='paid').length;
+  const unpaidAmt = bills.filter(b=>effectiveStatus(b)!=='paid').reduce((s,b)=>s+b.amount,0);
+  document.getElementById('s-amount').textContent    = fmtAmt(unpaidAmt);
+
+  const groups = {};
+  filtered.forEach(b=>{ const k=getPeriodWeekKey(b); if(!groups[k]) groups[k]=[]; groups[k].push(b); });
+  const sortedKeys = Object.keys(groups).sort((a,b)=>b.localeCompare(a));
+
+  const container = document.getElementById('bill-list');
+  if (!sortedKeys.length) {
+    container.innerHTML = '<div class="empty">没有符合条件的账单</div>';
+    updateWeekFilter(); updateSummaryWeekFilter(); renderSummary(); return;
+  }
+
+  container.innerHTML = sortedKeys.map(wk => {
+    const wBills = groups[wk].sort((a,b)=>(a.periodStart||a.date).localeCompare(b.periodStart||b.date));
+    const total  = wBills.reduce((s,b)=>s+b.amount, 0);
+    const unpaid = wBills.filter(b=>effectiveStatus(b)!=='paid').length;
+
+    const rows = wBills.map(b => {
+      const st = effectiveStatus(b);
+      const stLabel = {paid:'✓ 已支付', unpaid:'待支付', overdue:'已逾期', draft:'未提交', submitted:'已提交'}[st];
+      const stClass = {paid:'badge-paid', unpaid:'badge-unpaid', overdue:'badge-overdue', draft:'badge-draft', submitted:'badge-submitted'}[st];
+      const od = st==='overdue'&&b.due ? Math.floor((new Date()-new Date(b.due))/86400000) : 0;
+      const cc = CAT_COLORS[b.category]||'cat-5';
+
+      // Next-step workflow button
+      let nextBtn = '';
+      if (st === 'draft')          nextBtn = `<button class="adv-btn" onclick="advanceStatus(${b.id},'submitted')" title="标记为已提交">→ 提交</button>`;
+      else if (st === 'submitted') nextBtn = `<button class="adv-btn" onclick="advanceStatus(${b.id},'unpaid')" title="标记为待支付">→ 待付</button>`;
+      else if (st === 'unpaid' || st === 'overdue') nextBtn = `<button class="pay-btn" onclick="advanceStatus(${b.id},'paid')">✓ 已付</button>`;
+
+      return `<tr>
+        <td style="font-size:11px;color:#667eea;font-weight:700;white-space:nowrap">${b.invoice||'—'}</td>
+        <td><strong>${b.vendor}</strong></td>
+        <td>${b.warehouse?`<span style="background:#e6fffa;color:#234e52;padding:2px 7px;border-radius:20px;font-size:11px;font-weight:700">${b.warehouse}</span>`:'<span style="color:#cbd5e0">—</span>'}</td>
+        <td><span class="cat-tag ${cc}">${b.category}</span></td>
+        <td style="font-weight:700">${fmtAmt(b.amount)}</td>
+        <td style="font-size:11px;color:#718096;white-space:nowrap">${fmtPeriod(b.periodStart,b.periodEnd)}</td>
+        <td style="color:#718096;white-space:nowrap">${b.date}</td>
+        <td>${b.net?`<span style="background:#fefcbf;color:#744210;padding:2px 7px;border-radius:20px;font-size:11px;font-weight:700">Net ${b.net}</span>`:'—'}</td>
+        <td style="color:#718096;white-space:nowrap">${b.due?b.due+(st==='overdue'?` <span style="color:#e53e3e;font-size:10px">(逾${od}天)</span>`:''): '—'}</td>
+        <td style="font-size:12px;color:#718096">${b.method}</td>
+        <td><span class="badge ${stClass}">${stLabel}</span></td>
+        <td style="font-size:11px;color:#a0aec0;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${b.note||''}</td>
+        <td style="white-space:nowrap">
+          ${nextBtn}
+          <button class="edit-btn" onclick="openEdit(${b.id})">✏️</button>
+          <button class="del-btn" onclick="delBill(${b.id})">✕</button>
+        </td>
+      </tr>`;
+    }).join('');
+
+    return `<div class="week-group">
+      <div class="week-header" onclick="toggleWeek(this)">
+        <span class="week-label">📦 服务周期：${getWeekLabel(wk)}</span>
+        <span class="week-summary">${wBills.length}笔 · ${fmtAmt(total)} · ${unpaid?`<span style="color:#e53e3e">${unpaid}笔待付</span>`:'<span style="color:#38a169">全部已付 ✓</span>'}</span>
+        <span style="font-size:11px;color:#a0aec0;margin-left:8px">▲</span>
+      </div>
+      <div class="week-body">
+        <table>
+          <thead><tr><th>Invoice #</th><th>供应商</th><th>仓库</th><th>类型</th><th>金额</th><th>服务周期</th><th>账单日期</th><th>账期</th><th>截止日期</th><th>支付方式</th><th>状态</th><th>备注</th><th>操作</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+  }).join('');
+
+  updateWeekFilter();
+  updateSummaryWeekFilter();
+  renderSummary();
+}
+
+function updateWeekFilter() {
+  const allWeeks = [...new Set(bills.map(b=>getPeriodWeekKey(b)))].sort((a,b)=>b.localeCompare(a));
+  const sel = document.getElementById('filter-week');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">全部服务周</option>'+allWeeks.map(w=>
+    `<option value="${w}" ${w===cur?'selected':''}>${getWeekLabel(w)}</option>`).join('');
+}
+
+function toggleWeek(header) {
+  const body = header.nextElementSibling;
+  const tog  = header.querySelector('span:last-child');
+  body.classList.toggle('collapsed');
+  tog.textContent = body.classList.contains('collapsed') ? '▼' : '▲';
+}
+
+function markPaid(id) { const b = bills.find(x=>x.id===id); if (b) { b.status='paid'; save(); render(); } }
+function advanceStatus(id, newStatus) { const b = bills.find(x=>x.id===id); if (b) { b.status=newStatus; save(); render(); } }
+function delBill(id) {
+  if (!confirm('确认删除？')) return;
+  bills = bills.filter(x=>x.id!==id);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(bills));
+  cloudDeleteBill(id);
+  render();
+}
+
+// ── Modal auto-fill ───────────────────────────────
+let manualBillDate = false, manualDue = false, manualPeriodEnd = false;
+
+function onPeriodStartChange() {
+  const start = document.getElementById('f-period-start').value;
+  if (!start) return;
+  if (!manualPeriodEnd) {
+    document.getElementById('f-period-end').value = addDays(start, 6);
+    document.getElementById('f-period-end').classList.add('auto-filled');
+    document.getElementById('period-end-hint').style.display = '';
+  }
+  if (!manualBillDate) {
+    const periodEnd = document.getElementById('f-period-end').value;
+    if (periodEnd) {
+      document.getElementById('f-date').value = addDays(periodEnd, 2);
+      document.getElementById('f-date').classList.add('auto-filled');
+      document.getElementById('bill-date-hint').style.display = '';
+      autoFillDue();
+    }
+  }
+}
+
+function onPeriodEndManual() {
+  manualPeriodEnd = true;
+  document.getElementById('f-period-end').classList.remove('auto-filled');
+  document.getElementById('period-end-hint').style.display = 'none';
+  if (!manualBillDate) {
+    const periodEnd = document.getElementById('f-period-end').value;
+    if (periodEnd) {
+      document.getElementById('f-date').value = addDays(periodEnd, 2);
+      document.getElementById('f-date').classList.add('auto-filled');
+      autoFillDue();
+    }
+  }
+}
+
+function onBillDateManual() {
+  manualBillDate = true;
+  document.getElementById('f-date').classList.remove('auto-filled');
+  document.getElementById('bill-date-hint').style.display = 'none';
+}
+
+function onDueManual() {
+  manualDue = true;
+  document.getElementById('f-due').classList.remove('auto-filled');
+  document.getElementById('due-hint').style.display = 'none';
+}
+
+function autoFillDue() {
+  if (manualDue) return;
+  const net = document.getElementById('f-net').value;
+  const date = document.getElementById('f-date').value;
+  if (net && date) {
+    document.getElementById('f-due').value = addDays(date, parseInt(net));
+    document.getElementById('f-due').classList.add('auto-filled');
+    document.getElementById('due-hint').style.display = '';
+  }
+}
+
+function openModal() {
+  manualBillDate = false; manualDue = false; manualPeriodEnd = false;
+  document.getElementById('modal-title').textContent = '📄 添加账单';
+  document.getElementById('f-edit-id').value = '';
+  const now = new Date();
+  const dow = now.getDay() || 7;
+  const thisMon = new Date(now); thisMon.setDate(now.getDate()-(dow-1));
+  const lastMon = new Date(thisMon); lastMon.setDate(thisMon.getDate()-7);
+  const lastSun = addDays(lastMon.toISOString().slice(0,10), 6);
+  const lastMonStr = lastMon.toISOString().slice(0,10);
+  document.getElementById('f-vendor').value    = '';
+  document.getElementById('f-invoice').value   = '';
+  document.getElementById('f-warehouse').value = '';
+  document.getElementById('f-amount').value    = '';
+  document.getElementById('f-note').value      = '';
+  document.getElementById('f-category').value  = '外包工';
+  document.getElementById('f-method').value    = 'ACH / Wire';
+  document.getElementById('f-net').value       = '30';
+  document.getElementById('f-status').value    = 'unpaid';
+  document.getElementById('f-period-start').value = lastMonStr;
+  document.getElementById('f-period-end').value   = lastSun;
+  document.getElementById('f-period-end').classList.add('auto-filled');
+  document.getElementById('f-date').value = addDays(lastSun, 2);
+  document.getElementById('f-date').classList.add('auto-filled');
+  document.getElementById('f-due').value = '';
+  document.getElementById('bill-date-hint').style.display = '';
+  document.getElementById('period-end-hint').style.display = '';
+  autoFillDue();
+  document.getElementById('modal').classList.add('open');
+  setTimeout(()=>document.getElementById('f-vendor').focus(), 100);
+}
+
+function openEdit(id) {
+  manualBillDate = true; manualDue = true; manualPeriodEnd = true;
+  const b = bills.find(x=>x.id===id);
+  if (!b) return;
+  document.getElementById('modal-title').textContent = '✏️ 编辑账单';
+  document.getElementById('f-edit-id').value      = id;
+  document.getElementById('f-vendor').value       = b.vendor;
+  document.getElementById('f-invoice').value      = b.invoice||'';
+  document.getElementById('f-warehouse').value    = b.warehouse||'';
+  document.getElementById('f-category').value     = b.category;
+  document.getElementById('f-amount').value       = b.amount;
+  document.getElementById('f-note').value         = b.note||'';
+  document.getElementById('f-method').value       = b.method;
+  document.getElementById('f-net').value          = b.net||'';
+  document.getElementById('f-status').value       = b.status||'unpaid';
+  document.getElementById('f-period-start').value = b.periodStart||'';
+  document.getElementById('f-period-end').value   = b.periodEnd||'';
+  document.getElementById('f-date').value         = b.date;
+  document.getElementById('f-due').value          = b.due||'';
+  ['f-period-end','f-date','f-due'].forEach(id=>document.getElementById(id).classList.remove('auto-filled'));
+  ['period-end-hint','bill-date-hint','due-hint'].forEach(id=>document.getElementById(id).style.display='none');
+  document.getElementById('modal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('open');
+  ['f-period-end','f-date','f-due'].forEach(id=>document.getElementById(id).classList.remove('auto-filled'));
+}
+
+function saveBill() {
+  const vendor = document.getElementById('f-vendor').value.trim();
+  const amount = parseFloat(document.getElementById('f-amount').value);
+  const date   = document.getElementById('f-date').value;
+  if (!vendor||isNaN(amount)||amount<=0||!date) { alert('请填写供应商、金额和账单日期'); return; }
+  const editId = document.getElementById('f-edit-id').value;
+  const invoice = document.getElementById('f-invoice').value.trim();
+
+  // ── Duplicate invoice # check ──
+  if (invoice) {
+    const dup = bills.find(b =>
+      b.invoice && b.invoice.trim().toLowerCase() === invoice.toLowerCase() &&
+      b.vendor.trim().toLowerCase() === vendor.toLowerCase() &&
+      String(b.id) !== editId
+    );
+    if (dup) {
+      const ok = confirm(
+        `⚠️ 检测到重复的账单号！\n\n` +
+        `供应商：${dup.vendor}\n` +
+        `Invoice #：${dup.invoice}\n` +
+        `金额：${fmtAmt(dup.amount)}\n` +
+        `账单日期：${dup.date}\n` +
+        `状态：${effectiveStatus(dup)==='paid'?'已支付':'待支付'}\n\n` +
+        `是否仍要继续保存？`
+      );
+      if (!ok) return;
+    }
+  }
+
+  const data = {
+    vendor, invoice,
+    warehouse:document.getElementById('f-warehouse').value,
+    category:document.getElementById('f-category').value,
+    amount, date,
+    periodStart:document.getElementById('f-period-start').value||'',
+    periodEnd:document.getElementById('f-period-end').value||'',
+    net:document.getElementById('f-net').value||'',
+    due:document.getElementById('f-due').value||'',
+    method:document.getElementById('f-method').value,
+    note:document.getElementById('f-note').value.trim(),
+    status:document.getElementById('f-status').value
+  };
+  if (editId) {
+    const b = bills.find(x=>x.id===parseInt(editId));
+    if (b) Object.assign(b, data);
+  } else {
+    bills.push({ id:nextId++, ...data });
+  }
+  save(); closeModal(); render();
+}
+
+// ── Find all duplicate invoices ───────────────────
+function findDuplicates() {
+  const seen = {};
+  const dups = [];
+  bills.forEach(b => {
+    if (!b.invoice) return;
+    const key = b.vendor.trim().toLowerCase() + '||' + b.invoice.trim().toLowerCase();
+    if (seen[key]) {
+      seen[key].push(b);
+    } else {
+      seen[key] = [b];
+    }
+  });
+  Object.values(seen).forEach(group => {
+    if (group.length > 1) dups.push(group);
+  });
+  return dups;
+}
+
+function showDuplicates() {
+  const dups = findDuplicates();
+  const box = document.createElement('div');
+  box.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center';
+  let body = '';
+  if (!dups.length) {
+    body = '<div style="text-align:center;padding:32px;color:#38a169;font-size:14px;font-weight:600">✓ 没有发现重复账单号</div>';
+  } else {
+    body = dups.map(group => `
+      <div style="border:1px solid #fed7d7;background:#fff5f5;border-radius:10px;padding:12px;margin-bottom:10px">
+        <div style="font-size:12px;font-weight:700;color:#c53030;margin-bottom:8px">⚠️ ${group[0].vendor} · Invoice ${group[0].invoice} （${group.length} 条重复）</div>
+        ${group.map(b=>`
+          <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-top:1px solid #feb2b2">
+            <div style="flex:1;font-size:12px">
+              <div><strong>${fmtAmt(b.amount)}</strong> · ${b.date} · ${b.warehouse||'无仓'}</div>
+              <div style="color:#718096;font-size:11px">服务周期：${fmtPeriod(b.periodStart,b.periodEnd)} · ${effectiveStatus(b)==='paid'?'已支付':'待支付'}</div>
+            </div>
+            <button onclick="if(confirm('删除这条账单？')){bills=bills.filter(x=>x.id!==${b.id});save();this.closest('[style*=fixed]').remove();render();showDuplicates();}" style="padding:4px 10px;background:#fed7d7;color:#c53030;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">删除</button>
+          </div>`).join('')}
+      </div>
+    `).join('');
+  }
+  box.innerHTML = `<div style="background:white;border-radius:16px;padding:24px;width:90%;max-width:560px;box-shadow:0 20px 60px rgba(0,0,0,0.25);max-height:85vh;overflow-y:auto">
+    <h2 style="font-size:16px;font-weight:700;margin-bottom:14px;color:#2d3748">🔍 账单号查重</h2>
+    ${body}
+    <div style="display:flex;justify-content:flex-end;margin-top:14px">
+      <button onclick="this.closest('[style*=fixed]').remove()" style="padding:8px 18px;background:#edf2f7;color:#4a5568;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">关闭</button>
+    </div>
+  </div>`;
+  document.body.appendChild(box);
+}
+
+// ── Quick generate ────────────────────────────────
+function onQuickPeriodStartChange() {
+  const start = document.getElementById('q-period-start').value;
+  if (start) {
+    document.getElementById('q-period-end').value = addDays(start, 6);
+    document.getElementById('q-date').value = addDays(start, 8);
+    autoFillQuickDue();
+  }
+}
+
+function autoFillQuickDue() {
+  const net = document.getElementById('q-net').value;
+  const date = document.getElementById('q-date').value;
+  if (net && date) document.getElementById('q-due').value = addDays(date, parseInt(net));
+}
+
+function openQuick() {
+  const now = new Date();
+  const dow = now.getDay() || 7;
+  const thisMon = new Date(now); thisMon.setDate(now.getDate()-(dow-1));
+  const lastMon = new Date(thisMon); lastMon.setDate(thisMon.getDate()-7);
+  const lastMonStr = lastMon.toISOString().slice(0,10);
+  const lastSunStr = addDays(lastMonStr, 6);
+  const billDate   = addDays(lastSunStr, 2);
+  document.getElementById('q-period-start').value = lastMonStr;
+  document.getElementById('q-period-end').value   = lastSunStr;
+  document.getElementById('q-date').value         = billDate;
+  document.getElementById('q-net').value          = '30';
+  autoFillQuickDue();
+  document.getElementById('quick-checklist').innerHTML = WEEKLY_VENDORS.map((v,i)=>
+    `<div class="check-item">
+      <input type="checkbox" id="qc-${i}" checked>
+      <div class="ci-info">
+        <div class="ci-name">${v.vendor}</div>
+        <div class="ci-sub">${v.category} · ${v.method}</div>
+      </div>
+      <input type="number" id="qa-${i}" placeholder="金额 $" min="0" step="0.01">
+    </div>`).join('');
+  document.getElementById('quick-modal').classList.add('open');
+}
+
+function closeQuick() { document.getElementById('quick-modal').classList.remove('open'); }
+
+function generateQuick() {
+  const periodStart = document.getElementById('q-period-start').value;
+  const periodEnd   = document.getElementById('q-period-end').value;
+  const date = document.getElementById('q-date').value;
+  const net  = document.getElementById('q-net').value;
+  const due  = document.getElementById('q-due').value;
+  if (!date) { alert('请填写账单日期'); return; }
+  let added = 0;
+  WEEKLY_VENDORS.forEach((v,i)=>{
+    if (!document.getElementById(`qc-${i}`).checked) return;
+    const amount = parseFloat(document.getElementById(`qa-${i}`).value);
+    if (isNaN(amount)||amount<=0) return;
+    bills.push({ id:nextId++, vendor:v.vendor, category:v.category, amount, date,
+      periodStart, periodEnd, net, due:due||'', method:v.method,
+      invoice:'', warehouse:'', note:'', status:'unpaid' });
+    added++;
+  });
+  if (!added) { alert('请至少勾选一项并填写金额'); return; }
+  save(); closeQuick(); render();
+}
+
+// ── Summary panel with multi-dimension slicing ────
+let summaryOpen = true;
+let quickRange = 'all'; // all / week / month / lastmonth
+
+function toggleSummary() {
+  summaryOpen = !summaryOpen;
+  document.getElementById('summary-content').style.display = summaryOpen ? '' : 'none';
+  document.getElementById('summary-toggle-icon').textContent = summaryOpen ? '▲' : '▼';
+}
+
+function setQuickRange(r) {
+  quickRange = r;
+  ['all','week','month','lastmonth','q','ytd'].forEach(x=>{
+    const el = document.getElementById('qr-'+x);
+    if (el) el.classList.toggle('active', x===r);
+  });
+  // Quick range clears manual selections that conflict
+  if (r !== 'all') {
+    document.getElementById('sum-week').value = '';
+    document.getElementById('sum-date-from').value = '';
+    document.getElementById('sum-date-to').value = '';
+  }
+  renderSummary();
+}
+
+function onDateRangeChange() {
+  // Manual date range entered → cancel quick range
+  quickRange = 'custom';
+  ['all','week','month','lastmonth','q','ytd'].forEach(x=>{
+    const el = document.getElementById('qr-'+x);
+    if (el) el.classList.remove('active');
+  });
+  document.getElementById('sum-week').value = '';
+  renderSummary();
+}
+
+function resetSummaryFilters() {
+  document.getElementById('sum-warehouse').value = '';
+  document.getElementById('sum-week').value = '';
+  document.getElementById('sum-category').value = '';
+  document.getElementById('sum-vendor').value = '';
+  document.getElementById('sum-date-from').value = '';
+  document.getElementById('sum-date-to').value = '';
+  setQuickRange('all');
+}
+
+function updateSummaryWeekFilter() {
+  const allWeeks = [...new Set(bills.map(b=>getPeriodWeekKey(b)))].sort((a,b)=>b.localeCompare(a));
+  const sel = document.getElementById('sum-week');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">全部周期</option>'+allWeeks.map(w=>
+    `<option value="${w}" ${w===cur?'selected':''}>${getWeekLabel(w)}</option>`).join('');
+
+  // Also populate vendor filter
+  const allVendors = [...new Set(bills.map(b=>b.vendor))].sort();
+  const vSel = document.getElementById('sum-vendor');
+  const vCur = vSel.value;
+  vSel.innerHTML = '<option value="">全部供应商</option>'+allVendors.map(v=>
+    `<option value="${v}" ${v===vCur?'selected':''}>${v}</option>`).join('');
+}
+
+function getThisMondayStr() {
+  const now = new Date();
+  const dow = now.getDay() || 7;
+  const d = new Date(now); d.setDate(now.getDate()-(dow-1));
+  return d.toISOString().slice(0,10);
+}
+
+// Resolve current effective date range based on filters
+function resolveRange() {
+  const dFrom = document.getElementById('sum-date-from').value;
+  const dTo   = document.getElementById('sum-date-to').value;
+  const wk    = document.getElementById('sum-week').value;
+  const now   = new Date();
+  const yr    = now.getFullYear(), mo = now.getMonth();
+
+  if (dFrom || dTo) {
+    return { from: dFrom||'1900-01-01', to: dTo||'2999-12-31', label: `${dFrom||'起始'} ~ ${dTo||'结束'}` };
+  }
+  if (wk) {
+    return { from: wk, to: addDays(wk, 6), label: getWeekLabel(wk) };
+  }
+  if (quickRange === 'week') {
+    const m = getThisMondayStr();
+    return { from: m, to: addDays(m, 6), label: '本周 '+getWeekLabel(m) };
+  }
+  if (quickRange === 'month') {
+    const first = new Date(yr, mo, 1).toISOString().slice(0,10);
+    const last  = new Date(yr, mo+1, 0).toISOString().slice(0,10);
+    return { from: first, to: last, label: `本月 ${yr}/${mo+1}` };
+  }
+  if (quickRange === 'lastmonth') {
+    const lm = mo===0?11:mo-1, ly = mo===0?yr-1:yr;
+    const first = new Date(ly, lm, 1).toISOString().slice(0,10);
+    const last  = new Date(ly, lm+1, 0).toISOString().slice(0,10);
+    return { from: first, to: last, label: `上月 ${ly}/${lm+1}` };
+  }
+  if (quickRange === 'q') {
+    const qStart = Math.floor(mo/3)*3;
+    const first = new Date(yr, qStart, 1).toISOString().slice(0,10);
+    const last  = new Date(yr, qStart+3, 0).toISOString().slice(0,10);
+    return { from: first, to: last, label: `${yr}年 Q${Math.floor(mo/3)+1}` };
+  }
+  if (quickRange === 'ytd') {
+    return { from: `${yr}-01-01`, to: `${yr}-12-31`, label: `${yr}年` };
+  }
+  return { from: null, to: null, label: '全部时间' };
+}
+
+function inRange(b, from, to) {
+  if (!from && !to) return true;
+  const ref = b.periodStart || b.date;
+  return (!from || ref >= from) && (!to || ref <= to);
+}
+
+function applySummaryFilter() {
+  const wh  = document.getElementById('sum-warehouse').value;
+  const cat = document.getElementById('sum-category').value;
+  const ven = document.getElementById('sum-vendor').value;
+  const r   = resolveRange();
+
+  return bills.filter(b => {
+    if (wh && b.warehouse !== wh) return false;
+    if (cat && b.category !== cat) return false;
+    if (ven && b.vendor !== ven) return false;
+    if (!inRange(b, r.from, r.to)) return false;
+    return true;
+  });
+}
+
+// Get bills for a previous period of same length
+function getPreviousPeriod(from, to, offsetMonths) {
+  if (!from || !to) return [];
+  const dF = new Date(from + 'T00:00:00');
+  const dT = new Date(to   + 'T00:00:00');
+  if (offsetMonths === 'prev') {
+    // Previous equal-length window directly before
+    const diffDays = Math.round((dT - dF)/86400000) + 1;
+    const newTo   = addDays(from, -1);
+    const newFrom = addDays(newTo, -(diffDays - 1));
+    return { from: newFrom, to: newTo };
+  }
+  if (offsetMonths === 'lastyear') {
+    const newFrom = new Date(dF); newFrom.setFullYear(dF.getFullYear()-1);
+    const newTo   = new Date(dT); newTo.setFullYear(dT.getFullYear()-1);
+    return { from: newFrom.toISOString().slice(0,10), to: newTo.toISOString().slice(0,10) };
+  }
+  return null;
+}
+
+function applyFilterToBills(billsList, range) {
+  const wh  = document.getElementById('sum-warehouse').value;
+  const cat = document.getElementById('sum-category').value;
+  const ven = document.getElementById('sum-vendor').value;
+  return billsList.filter(b => {
+    if (wh && b.warehouse !== wh) return false;
+    if (cat && b.category !== cat) return false;
+    if (ven && b.vendor !== ven) return false;
+    if (!inRange(b, range.from, range.to)) return false;
+    return true;
+  });
+}
+
+function fmtChange(curVal, prevVal) {
+  if (!prevVal) return '<span class="cc-change flat">—</span>';
+  const pct = ((curVal - prevVal) / prevVal) * 100;
+  const cls = Math.abs(pct) < 0.5 ? 'flat' : (pct > 0 ? 'up' : 'down');
+  const sign = pct > 0 ? '▲' : (pct < 0 ? '▼' : '');
+  return `<span class="cc-change ${cls}">${sign} ${Math.abs(pct).toFixed(1)}%</span>`;
+}
+
+// Build trend data: bills aggregated by week/month within range
+function buildTrendData(curBills, range) {
+  if (!curBills.length) return { series:[], unit:'week' };
+  // Decide weekly vs monthly: span > 90 days → monthly
+  const dF = range.from ? new Date(range.from+'T12:00:00') : new Date(Math.min(...curBills.map(b=>new Date((b.periodStart||b.date)+'T12:00:00'))));
+  const dT = range.to   ? new Date(range.to  +'T12:00:00') : new Date();
+  const days = Math.round((dT - dF)/86400000);
+  const unit = days > 90 ? 'month' : 'week';
+
+  const buckets = {};
+  curBills.forEach(b=>{
+    const ref = b.periodStart || b.date;
+    let key, label;
+    if (unit === 'week') {
+      key = getWeekKey(ref);
+      const { week } = getISOWeek(ref);
+      label = `W${week}`;
+    } else {
+      const d = new Date(ref+'T12:00:00');
+      key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      label = `${d.getMonth()+1}月`;
+    }
+    if (!buckets[key]) buckets[key] = { key, label, total:0, count:0 };
+    buckets[key].total += b.amount;
+    buckets[key].count++;
+  });
+  const series = Object.values(buckets).sort((a,b)=>a.key.localeCompare(b.key));
+  return { series, unit };
+}
+
+function calcTotal(arr) { return arr.reduce((s,b)=>s+b.amount, 0); }
+
+function renderSummary() {
+  const cur   = applySummaryFilter();
+  const range = resolveRange();
+  const wh    = document.getElementById('sum-warehouse').value;
+  const cat   = document.getElementById('sum-category').value;
+  const ven   = document.getElementById('sum-vendor').value;
+  const wk    = document.getElementById('sum-week').value;
+
+  // Build label chips
+  const chips = [];
+  if (wh) chips.push(`🏢 ${wh}`);
+  if (cat) chips.push(`🏷️ ${cat}`);
+  if (ven) chips.push(`👤 ${ven}`);
+  chips.push(`📅 ${range.label}`);
+
+  document.getElementById('summary-period-label').textContent = `${cur.length} 笔`;
+
+  const curTotal  = calcTotal(cur);
+  const curPaid   = calcTotal(cur.filter(b=>effectiveStatus(b)==='paid'));
+  const curUnpaid = calcTotal(cur.filter(b=>effectiveStatus(b)!=='paid'));
+
+  // ── 环比 / 同比 ──
+  let momCard = '', yoyCard = '';
+  if (range.from && range.to) {
+    const momR = getPreviousPeriod(range.from, range.to, 'prev');
+    const yoyR = getPreviousPeriod(range.from, range.to, 'lastyear');
+    if (momR) {
+      const momBills = applyFilterToBills(bills, momR);
+      const momTotal = calcTotal(momBills);
+      momCard = `<div class="cmp-card">
+        <div class="cc-label">环比（上一期）</div>
+        <div class="cc-amt">${fmtAmt(momTotal)}</div>
+        <div class="cc-sub">${momR.from} ~ ${momR.to} · ${momBills.length} 笔</div>
+        ${fmtChange(curTotal, momTotal)}
+      </div>`;
+    }
+    if (yoyR) {
+      const yoyBills = applyFilterToBills(bills, yoyR);
+      const yoyTotal = calcTotal(yoyBills);
+      yoyCard = `<div class="cmp-card">
+        <div class="cc-label">同比（去年同期）</div>
+        <div class="cc-amt">${fmtAmt(yoyTotal)}</div>
+        <div class="cc-sub">${yoyR.from} ~ ${yoyR.to} · ${yoyBills.length} 笔</div>
+        ${fmtChange(curTotal, yoyTotal)}
+      </div>`;
+    }
+  }
+
+  // Aggregate dimensions
+  const cats={}, vendors={}, whs={}, weeks={};
+  cur.forEach(b=>{
+    if(!cats[b.category]) cats[b.category]={amt:0,count:0};
+    cats[b.category].amt+=b.amount; cats[b.category].count++;
+    if(!vendors[b.vendor]) vendors[b.vendor]={amt:0,count:0,cat:b.category};
+    vendors[b.vendor].amt+=b.amount; vendors[b.vendor].count++;
+    const whKey = b.warehouse || '(未指定)';
+    if(!whs[whKey]) whs[whKey]={amt:0,count:0};
+    whs[whKey].amt+=b.amount; whs[whKey].count++;
+    const wkKey = getPeriodWeekKey(b);
+    if(!weeks[wkKey]) weeks[wkKey]={amt:0,count:0};
+    weeks[wkKey].amt+=b.amount; weeks[wkKey].count++;
+  });
+  const sortedV = Object.entries(vendors).sort((a,b)=>b[1].amt-a[1].amt);
+  const maxVAmt = sortedV[0]?.[1].amt||1;
+
+  // Trend chart
+  const trend = buildTrendData(cur, range);
+  const maxTrend = Math.max(...trend.series.map(s=>s.total), 1);
+  const trendChartHtml = trend.series.length > 1 ? `
+    <div class="sum-divider">📈 ${trend.unit==='month'?'月度':'周度'}走势</div>
+    <div class="trend-chart">
+      <div class="trend-bars">
+        ${trend.series.map(s=>`
+          <div class="trend-bar-col">
+            <div class="trend-bar-amt">$${(s.total/1000).toFixed(s.total>=10000?0:1)}k</div>
+            <div class="trend-bar" style="height:${Math.max(2, s.total/maxTrend*100)}%" title="${s.label}: ${fmtAmt(s.total)} (${s.count}笔)"></div>
+            <div class="trend-bar-label">${s.label}</div>
+          </div>`).join('')}
+      </div>
+    </div>` : '';
+
+  if (!cur.length) {
+    document.getElementById('summary-body').innerHTML = `
+      <div>${chips.map(c=>`<span class="filter-chip-summary">${c}</span>`).join('')}</div>
+      <div style="text-align:center;padding:32px;color:#a0aec0;font-size:13px">该筛选条件下无账单数据</div>`;
+    return;
+  }
+
+  document.getElementById('summary-body').innerHTML = `
+
+    <div style="margin-bottom:14px">${chips.map(c=>`<span class="filter-chip-summary">${c}</span>`).join('')}</div>
+
+    <!-- KPI -->
+    <div class="summary-grid" style="margin-bottom:14px">
+      <div class="sum-card highlight">
+        <div class="sc-label">合计金额</div>
+        <div class="sc-amt">${fmtAmt(curTotal)}</div>
+        <div class="sc-sub">${cur.length} 笔账单</div>
+      </div>
+      <div class="sum-card">
+        <div class="sc-label" style="color:#276749">已支付</div>
+        <div class="sc-amt" style="color:#276749">${fmtAmt(curPaid)}</div>
+        <div class="sc-sub">${cur.filter(b=>effectiveStatus(b)==='paid').length} 笔</div>
+      </div>
+      <div class="sum-card">
+        <div class="sc-label" style="color:#c53030">未支付</div>
+        <div class="sc-amt" style="color:#c53030">${fmtAmt(curUnpaid)}</div>
+        <div class="sc-sub">${cur.filter(b=>effectiveStatus(b)!=='paid').length} 笔</div>
+      </div>
+    </div>
+
+    <!-- 环比 / 同比 -->
+    ${(momCard||yoyCard) ? `
+    <div class="sum-divider">📊 对比分析</div>
+    <div class="compare-grid">
+      ${momCard}${yoyCard}
+    </div>` : ''}
+
+    ${trendChartHtml}
+
+    <!-- 按类型 (类型项目) -->
+    <div class="sum-divider">按类型 (项目)</div>
+    <div class="summary-grid">
+      ${Object.entries(cats).sort((a,b)=>b[1].amt-a[1].amt).map(([c,d])=>`
+        <div class="sum-card">
+          <div class="sc-label" style="color:${CAT_HEX[c]||'#4a5568'}">${c}</div>
+          <div class="sc-amt" style="color:${CAT_HEX[c]||'#4a5568'};font-size:16px">${fmtAmt(d.amt)}</div>
+          <div class="sc-sub">${d.count}笔 · ${Math.round(d.amt/curTotal*100)}%</div>
+        </div>`).join('')}
+    </div>
+
+    <!-- 按仓库 -->
+    ${Object.keys(whs).length>1 || (!wh && Object.keys(whs).length)?`
+    <div class="sum-divider">按仓库</div>
+    <div class="summary-grid">
+      ${Object.entries(whs).sort((a,b)=>b[1].amt-a[1].amt).map(([w,d])=>`
+        <div class="sum-card">
+          <div class="sc-label" style="color:#234e52">${w}</div>
+          <div class="sc-amt" style="color:#234e52;font-size:16px">${fmtAmt(d.amt)}</div>
+          <div class="sc-sub">${d.count}笔 · ${Math.round(d.amt/curTotal*100)}%</div>
+        </div>`).join('')}
+    </div>`:''}
+
+    <!-- 按周期 -->
+    ${Object.keys(weeks).length>1?`
+    <div class="sum-divider">按服务周期 (周花费)</div>
+    ${Object.entries(weeks).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,12).map(([w,d])=>`
+      <div class="sum-vendor-row">
+        <span class="sv-name">📅 ${getWeekLabel(w)}</span>
+        <div class="sv-bar-wrap"><div class="sv-bar" style="width:${Math.round(d.amt/Math.max(...Object.values(weeks).map(x=>x.amt))*100)}%;background:#667eea"></div></div>
+        <span class="sv-amt">${fmtAmt(d.amt)}</span>
+        <span class="sv-count">${d.count}笔</span>
+      </div>`).join('')}
+    `:''}
+
+    <!-- 按供应商 -->
+    <div class="sum-divider">按供应商明细</div>
+    ${sortedV.map(([v,d])=>`
+      <div class="sum-vendor-row">
+        <span class="sv-name">${v}<span class="sv-cat">${d.cat}</span></span>
+        <div class="sv-bar-wrap"><div class="sv-bar" style="width:${Math.round(d.amt/maxVAmt*100)}%;background:${CAT_HEX[d.cat]||'#667eea'}"></div></div>
+        <span class="sv-amt">${fmtAmt(d.amt)}</span>
+        <span class="sv-count">${d.count}笔</span>
+      </div>`).join('')}
+  `;
+}
+
+// ── Import ────────────────────────────────────────
+function importData() {
+  const box = document.createElement('div');
+  box.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  box.innerHTML = `<div style="background:white;border-radius:16px;padding:24px;width:100%;max-width:540px;box-shadow:0 20px 60px rgba(0,0,0,0.25);max-height:90vh;overflow-y:auto">
+    <h2 style="font-size:16px;font-weight:700;margin-bottom:6px;color:#2d3748">📥 导入账单数据</h2>
+    <p style="font-size:12px;color:#718096;margin-bottom:12px">粘贴从其他设备导出的数据（以 <code>[{</code> 开头的 JSON 文本）</p>
+    <textarea id="import-box" placeholder='[{"id":1,"vendor":"...","amount":...},...]' style="width:100%;height:160px;border:1px solid #e2e8f0;border-radius:8px;padding:10px;font-size:11px;font-family:monospace;resize:vertical;outline:none;background:#f7fafc;color:#4a5568"></textarea>
+
+    <div style="margin-top:14px;background:#fffbeb;border:1px solid #fef3c7;border-radius:8px;padding:10px 12px">
+      <div style="font-size:11px;font-weight:700;color:#92400e;margin-bottom:6px">📋 导入方式</div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#744210;margin-bottom:4px;cursor:pointer">
+        <input type="radio" name="import-mode" value="merge" checked> <strong>智能合并</strong>（按账单号 + 供应商 去重，保留已有的已支付状态）
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#744210;cursor:pointer">
+        <input type="radio" name="import-mode" value="replace"> <strong>完全替换</strong>（清空本地所有数据，重新导入）
+      </label>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:14px;justify-content:flex-end">
+      <button onclick="this.closest('[style*=fixed]').remove()" style="padding:8px 18px;background:#edf2f7;color:#4a5568;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">取消</button>
+      <button onclick="doImport()" style="padding:8px 18px;background:#4299e1;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">✓ 导入</button>
+    </div>
+  </div>`;
+  box.onclick = e => { if (e.target === box) box.remove(); };
+  document.body.appendChild(box);
+  setTimeout(()=>document.getElementById('import-box').focus(), 100);
+}
+
+function doImport() {
+  const txt = document.getElementById('import-box').value.trim();
+  const mode = document.querySelector('input[name="import-mode"]:checked').value;
+  if (!txt) { alert('请粘贴账单数据'); return; }
+
+  let imported;
+  try {
+    imported = JSON.parse(txt);
+    if (!Array.isArray(imported)) throw new Error('数据格式不正确');
+  } catch (e) {
+    alert('❌ 解析失败：' + e.message + '\n\n请确认粘贴了完整的 JSON 数组');
+    return;
+  }
+
+  if (!imported.length) { alert('❌ 数据为空'); return; }
+
+  if (mode === 'replace') {
+    if (!confirm(`⚠️ 完全替换将清空本地所有 ${bills.length} 条账单，并导入 ${imported.length} 条新账单。\n\n此操作不可撤销，确认继续？`)) return;
+    bills = imported;
+  } else {
+    // Smart merge by invoice + vendor
+    let added = 0, updated = 0, skipped = 0;
+    imported.forEach(newB => {
+      if (!newB.invoice || !newB.vendor) {
+        // No unique key, just append
+        const maxId = Math.max(0, ...bills.map(b=>b.id));
+        bills.push({ ...newB, id: maxId + 1 });
+        added++;
+        return;
+      }
+      const existing = bills.find(b =>
+        b.invoice && b.invoice.trim().toLowerCase() === newB.invoice.trim().toLowerCase() &&
+        b.vendor.trim().toLowerCase() === newB.vendor.trim().toLowerCase()
+      );
+      if (existing) {
+        // Merge: keep "paid" status if either side is paid
+        const wasPaid = existing.status === 'paid' || newB.status === 'paid';
+        Object.assign(existing, newB, { id: existing.id });
+        if (wasPaid) existing.status = 'paid';
+        updated++;
+      } else {
+        const maxId = Math.max(0, ...bills.map(b=>b.id));
+        bills.push({ ...newB, id: maxId + 1 });
+        added++;
+      }
+    });
+    alert(`✅ 导入完成：\n新增 ${added} 条\n更新 ${updated} 条\n${skipped?`跳过 ${skipped} 条`:''}`);
+  }
+
+  nextId = bills.length ? Math.max(...bills.map(b=>b.id))+1 : 1;
+  save();
+  document.querySelectorAll('[style*=fixed]').forEach(el => el.remove());
+  render();
+}
+
+// ── Export ────────────────────────────────────────
+function exportData() {
+  const data = localStorage.getItem(STORAGE_KEY) || '[]';
+  const box = document.createElement('div');
+  box.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center';
+  box.innerHTML = `<div style="background:white;border-radius:16px;padding:26px;width:90%;max-width:540px;box-shadow:0 20px 60px rgba(0,0,0,0.25)">
+    <h2 style="font-size:16px;font-weight:700;margin-bottom:6px;color:#2d3748">📤 导出账单数据</h2>
+    <p style="font-size:12px;color:#718096;margin-bottom:12px">点击"复制全部"后粘贴给 Claude 即可迁移数据</p>
+    <textarea id="export-box" style="width:100%;height:150px;border:1px solid #e2e8f0;border-radius:8px;padding:10px;font-size:11px;font-family:monospace;resize:none;outline:none;background:#f7fafc;color:#4a5568">${data}</textarea>
+    <div style="display:flex;gap:10px;margin-top:14px;justify-content:flex-end">
+      <button onclick="document.getElementById('export-box').select();document.execCommand('copy');this.textContent='✓ 已复制!';this.style.background='#276749'" style="padding:8px 18px;background:#38a169;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">复制全部</button>
+      <button onclick="this.closest('div').parentElement.remove()" style="padding:8px 18px;background:#edf2f7;color:#4a5568;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">关闭</button>
+    </div>
+  </div>`;
+  document.body.appendChild(box);
+  setTimeout(()=>{ document.getElementById('export-box').select(); }, 150);
+}
+
+// ── Events ────────────────────────────────────────
+document.getElementById('filter-week').onchange     = render;
+document.getElementById('filter-invoice').onchange  = render;
+document.getElementById('filter-category').onchange = render;
+document.getElementById('filter-status').onchange   = render;
+document.getElementById('filter-vendor').oninput    = render;
+document.getElementById('modal').onclick       = e=>{ if(e.target.id==='modal') closeModal(); };
+document.getElementById('quick-modal').onclick = e=>{ if(e.target.id==='quick-modal') closeQuick(); };
+
+render();
+
+// Initialize from cloud
+if (CLOUD_ENABLED) initFromCloud();
+
+// PWA: register service worker
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>

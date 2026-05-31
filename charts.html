@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>账单可视化 - 饼状图</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#667eea">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="账单图表">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f4f8; color: #1a202c; min-height: 100vh; padding-bottom: 40px; }
+
+  .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 24px 28px; }
+  .header h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+  .header p { font-size: 12px; opacity: 0.85; }
+  .header a { color: white; text-decoration: underline; opacity: 0.9; }
+
+  .toolbar { background: white; padding: 14px 20px; border-bottom: 1px solid #e2e8f0; display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+  .tool-group { display: flex; flex-direction: column; gap: 4px; }
+  .tool-group label { font-size: 10px; font-weight: 800; color: #6b46c1; text-transform: uppercase; letter-spacing: 0.05em; }
+  .tool-group select, .tool-group input { border: 1px solid #d6bcfa; border-radius: 8px; padding: 7px 11px; font-size: 13px; background: white; outline: none; color: #2d3748; min-width: 130px; }
+  .tool-group select:focus, .tool-group input:focus { border-color: #667eea; }
+  .quick-btns { display: flex; gap: 4px; flex-wrap: wrap; }
+  .qbtn { padding: 6px 12px; border-radius: 16px; border: 1px solid #d6bcfa; background: white; color: #6b46c1; font-size: 12px; font-weight: 700; cursor: pointer; }
+  .qbtn.active { background: #553c9a; color: white; border-color: #553c9a; }
+  .qbtn:hover:not(.active) { background: #faf5ff; }
+  .reset-btn { padding: 7px 14px; border-radius: 8px; border: 1px solid #fed7d7; background: white; color: #c53030; font-size: 12px; font-weight: 700; cursor: pointer; margin-left: auto; }
+
+  .summary-banner { background: linear-gradient(135deg, #faf5ff, #ebf4ff); padding: 20px 24px; border-bottom: 1px solid #e2e8f0; display: flex; gap: 24px; flex-wrap: wrap; }
+  .sb-item { flex: 1; min-width: 140px; }
+  .sb-label { font-size: 11px; color: #718096; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+  .sb-value { font-size: 24px; font-weight: 800; color: #2d3748; margin-top: 4px; }
+  .sb-sub { font-size: 11px; color: #a0aec0; margin-top: 2px; }
+
+  .charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 18px; padding: 20px; }
+  .chart-card { background: white; border-radius: 14px; box-shadow: 0 1px 6px rgba(0,0,0,0.07); padding: 20px; }
+  .chart-title { font-size: 14px; font-weight: 700; color: #2d3748; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+  .chart-subtitle { font-size: 11px; color: #a0aec0; margin-bottom: 16px; }
+
+  .pie-container { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .pie-svg { width: 180px; height: 180px; flex-shrink: 0; }
+  .pie-legend { flex: 1; min-width: 140px; max-height: 220px; overflow-y: auto; }
+  .legend-item { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 12px; }
+  .legend-dot { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; }
+  .legend-name { flex: 1; color: #2d3748; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .legend-amt { color: #553c9a; font-weight: 700; white-space: nowrap; font-size: 11px; }
+  .legend-pct { color: #a0aec0; font-size: 11px; margin-left: 4px; min-width: 38px; text-align: right; }
+
+  .pie-slice { transition: opacity 0.2s, transform 0.2s; transform-origin: center; cursor: pointer; }
+  .pie-slice:hover { opacity: 0.85; transform: scale(1.03); }
+  .pie-center { font-size: 16px; font-weight: 800; fill: #2d3748; text-anchor: middle; }
+  .pie-center-sub { font-size: 9px; fill: #a0aec0; text-anchor: middle; font-weight: 600; }
+
+  .bar-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid #f0f4f8; }
+  .bar-row:last-child { border-bottom: none; }
+  .bar-name { flex: 1; font-size: 12px; font-weight: 600; color: #2d3748; min-width: 100px; }
+  .bar-track { flex: 2; height: 8px; background: #edf2f7; border-radius: 4px; overflow: hidden; min-width: 60px; }
+  .bar-fill { height: 100%; border-radius: 4px; }
+  .bar-amt { font-size: 12px; font-weight: 700; color: #553c9a; white-space: nowrap; min-width: 80px; text-align: right; }
+
+  .empty { text-align: center; padding: 40px 20px; color: #a0aec0; font-size: 13px; }
+
+  .filter-chip { display:inline-flex; align-items:center; gap:6px; background:#553c9a; color:white; padding:4px 10px; border-radius:20px; font-size:11px; font-weight:700; margin-right:6px; margin-bottom:4px; }
+
+  @media (max-width: 600px) {
+    .charts-grid { grid-template-columns: 1fr; padding: 12px; }
+    .pie-container { flex-direction: column; }
+    .pie-svg { width: 200px; height: 200px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>📊 账单可视化分析</h1>
+  <p>饼状图 · 柱状图 · 多维度分析 ｜ <a href="index.html">← 返回主页面</a></p>
+</div>
+
+<div class="toolbar">
+  <div class="tool-group">
+    <label>🏢 仓库</label>
+    <select id="f-warehouse" onchange="render()">
+      <option value="">全部</option>
+      <option>TX001</option>
+      <option>CA008</option>
+      <option>GA006</option>
+    </select>
+  </div>
+  <div class="tool-group">
+    <label>🏷️ 类型</label>
+    <select id="f-category" onchange="render()">
+      <option value="">全部</option>
+      <option>外包工</option>
+      <option>卸货工</option>
+      <option>煤气费</option>
+      <option>卫生费</option>
+      <option>月租费</option>
+      <option>其他</option>
+    </select>
+  </div>
+  <div class="tool-group">
+    <label>👤 供应商</label>
+    <select id="f-vendor" onchange="render()">
+      <option value="">全部</option>
+    </select>
+  </div>
+  <div class="tool-group">
+    <label>📅 起始日期</label>
+    <input type="date" id="f-from" onchange="onDateChange()">
+  </div>
+  <div class="tool-group">
+    <label>📅 结束日期</label>
+    <input type="date" id="f-to" onchange="onDateChange()">
+  </div>
+  <div class="tool-group">
+    <label>⏱️ 快捷</label>
+    <div class="quick-btns">
+      <button class="qbtn active" onclick="setRange('all')" id="r-all">全部</button>
+      <button class="qbtn" onclick="setRange('month')" id="r-month">本月</button>
+      <button class="qbtn" onclick="setRange('lastmonth')" id="r-lastmonth">上月</button>
+      <button class="qbtn" onclick="setRange('q')" id="r-q">本季度</button>
+      <button class="qbtn" onclick="setRange('ytd')" id="r-ytd">今年</button>
+    </div>
+  </div>
+  <button class="reset-btn" onclick="resetFilters()">↺ 重置</button>
+</div>
+
+<div class="summary-banner" id="summary-banner"></div>
+
+<div id="filter-chips" style="padding:0 20px"></div>
+
+<div class="charts-grid" id="charts-grid"></div>
+
+<script>
+const STORAGE_KEY = 'bills_v3';
+
+// Color palettes for different chart types
+const PALETTE = ['#667eea','#f6ad55','#48bb78','#ed64a6','#4fd1c5','#9f7aea','#fc8181','#63b3ed','#f6e05e','#a0aec0','#fbb6ce','#76e4f7'];
+const CAT_HEX = { '外包工':'#553c9a','卸货工':'#c05621','月租费':'#2b6cb0','煤气费':'#276749','卫生费':'#822727','其他':'#4a5568' };
+const STATUS_HEX = { 'paid':'#48bb78','unpaid':'#fc8181','overdue':'#f6ad55','submitted':'#63b3ed','draft':'#a0aec0' };
+const STATUS_LABEL = { 'paid':'✓ 已支付','unpaid':'⏰ 待支付','overdue':'⚠️ 已逾期','submitted':'📨 已提交','draft':'📝 未提交' };
+
+let bills = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+// ═══ CLOUD SYNC (read-only on charts page) ═══
+const SUPABASE_URL = 'https://dcujngesbmgwtvsdqjfr.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_WCmimE1KRVmCyNO25D3NBw_CG3zux3W';
+
+async function fetchCloudBills() {
+  try {
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/bills?select=id,data`, {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+    });
+    if (!resp.ok) return null;
+    const rows = await resp.json();
+    return rows.map(r => ({ ...r.data, id: r.id }));
+  } catch (e) {
+    console.warn('Cloud fetch failed, using local:', e);
+    return null;
+  }
+}
+
+async function refreshFromCloud() {
+  const cloudBills = await fetchCloudBills();
+  if (cloudBills && cloudBills.length) {
+    bills = cloudBills;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(bills));
+    render();
+  }
+}
+
+let quickRange = 'all';
+
+function fmtAmt(n) { return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmtAmtShort(n) {
+  if (n >= 1000000) return '$'+(n/1000000).toFixed(2)+'M';
+  if (n >= 1000) return '$'+(n/1000).toFixed(1)+'k';
+  return '$'+n.toFixed(0);
+}
+
+function effectiveStatus(b) {
+  if (b.status==='paid') return 'paid';
+  if (b.status==='draft') return 'draft';
+  if (b.status==='submitted') return 'submitted';
+  if (b.due && new Date(b.due+'T23:59:59') < new Date()) return 'overdue';
+  return 'unpaid';
+}
+
+function setRange(r) {
+  quickRange = r;
+  ['all','month','lastmonth','q','ytd'].forEach(x => {
+    const el = document.getElementById('r-'+x);
+    if (el) el.classList.toggle('active', x===r);
+  });
+  document.getElementById('f-from').value = '';
+  document.getElementById('f-to').value = '';
+  render();
+}
+
+function onDateChange() {
+  quickRange = 'custom';
+  ['all','month','lastmonth','q','ytd'].forEach(x => {
+    const el = document.getElementById('r-'+x);
+    if (el) el.classList.remove('active');
+  });
+  render();
+}
+
+function resetFilters() {
+  document.getElementById('f-warehouse').value = '';
+  document.getElementById('f-category').value = '';
+  document.getElementById('f-vendor').value = '';
+  document.getElementById('f-from').value = '';
+  document.getElementById('f-to').value = '';
+  setRange('all');
+}
+
+function getRange() {
+  const dF = document.getElementById('f-from').value;
+  const dT = document.getElementById('f-to').value;
+  if (dF || dT) return { from: dF||'1900-01-01', to: dT||'2999-12-31', label: `${dF||'起始'} ~ ${dT||'结束'}` };
+
+  const now = new Date();
+  const yr = now.getFullYear(), mo = now.getMonth();
+  if (quickRange === 'month') {
+    const f = new Date(yr, mo, 1).toISOString().slice(0,10);
+    const t = new Date(yr, mo+1, 0).toISOString().slice(0,10);
+    return { from: f, to: t, label: `本月 ${yr}/${mo+1}` };
+  }
+  if (quickRange === 'lastmonth') {
+    const lm = mo===0?11:mo-1, ly = mo===0?yr-1:yr;
+    const f = new Date(ly, lm, 1).toISOString().slice(0,10);
+    const t = new Date(ly, lm+1, 0).toISOString().slice(0,10);
+    return { from: f, to: t, label: `上月 ${ly}/${lm+1}` };
+  }
+  if (quickRange === 'q') {
+    const qS = Math.floor(mo/3)*3;
+    const f = new Date(yr, qS, 1).toISOString().slice(0,10);
+    const t = new Date(yr, qS+3, 0).toISOString().slice(0,10);
+    return { from: f, to: t, label: `${yr}年 Q${Math.floor(mo/3)+1}` };
+  }
+  if (quickRange === 'ytd') {
+    return { from: `${yr}-01-01`, to: `${yr}-12-31`, label: `${yr}年` };
+  }
+  return { from: null, to: null, label: '全部时间' };
+}
+
+function applyFilter() {
+  const wh = document.getElementById('f-warehouse').value;
+  const cat = document.getElementById('f-category').value;
+  const ven = document.getElementById('f-vendor').value;
+  const r = getRange();
+  return bills.filter(b => {
+    if (wh && b.warehouse !== wh) return false;
+    if (cat && b.category !== cat) return false;
+    if (ven && b.vendor !== ven) return false;
+    if (r.from || r.to) {
+      const ref = b.periodStart || b.date;
+      if (r.from && ref < r.from) return false;
+      if (r.to && ref > r.to) return false;
+    }
+    return true;
+  });
+}
+
+// ── Pie chart SVG generator ────────────────────
+function buildPieChart(data, totalLabel) {
+  const total = data.reduce((s,d)=>s+d.value, 0);
+  if (!total) return '<div class="empty">暂无数据</div>';
+
+  const cx = 90, cy = 90, r = 70, rInner = 35;
+  let cumAngle = -Math.PI/2; // start at top
+
+  const slices = data.map((d, i) => {
+    const angle = (d.value/total) * Math.PI * 2;
+    const x1 = cx + r*Math.cos(cumAngle);
+    const y1 = cy + r*Math.sin(cumAngle);
+    const x2 = cx + r*Math.cos(cumAngle+angle);
+    const y2 = cy + r*Math.sin(cumAngle+angle);
+    const xi1 = cx + rInner*Math.cos(cumAngle);
+    const yi1 = cy + rInner*Math.sin(cumAngle);
+    const xi2 = cx + rInner*Math.cos(cumAngle+angle);
+    const yi2 = cy + rInner*Math.sin(cumAngle+angle);
+    const largeArc = angle > Math.PI ? 1 : 0;
+    const path = `M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} L ${xi2} ${yi2} A ${rInner} ${rInner} 0 ${largeArc} 0 ${xi1} ${yi1} Z`;
+
+    // Label on slice if big enough
+    const midAngle = cumAngle + angle/2;
+    const labelR = (r + rInner) / 2;
+    const lx = cx + labelR*Math.cos(midAngle);
+    const ly = cy + labelR*Math.sin(midAngle);
+    const pct = (d.value/total*100).toFixed(0);
+    const showLabel = d.value/total > 0.06;
+
+    cumAngle += angle;
+
+    return `
+      <path d="${path}" fill="${d.color}" class="pie-slice">
+        <title>${d.name}: ${fmtAmt(d.value)} (${pct}%)</title>
+      </path>
+      ${showLabel ? `<text x="${lx}" y="${ly}" font-size="11" font-weight="700" fill="white" text-anchor="middle" dominant-baseline="central" pointer-events="none">${pct}%</text>` : ''}
+    `;
+  }).join('');
+
+  return `
+    <div class="pie-container">
+      <svg class="pie-svg" viewBox="0 0 180 180">
+        ${slices}
+        <text x="90" y="86" class="pie-center">${fmtAmtShort(total)}</text>
+        <text x="90" y="100" class="pie-center-sub">${totalLabel || '总额'}</text>
+      </svg>
+      <div class="pie-legend">
+        ${data.map((d,i) => `
+          <div class="legend-item">
+            <span class="legend-dot" style="background:${d.color}"></span>
+            <span class="legend-name" title="${d.name}">${d.name}</span>
+            <span class="legend-amt">${fmtAmtShort(d.value)}</span>
+            <span class="legend-pct">${(d.value/total*100).toFixed(1)}%</span>
+          </div>`).join('')}
+      </div>
+    </div>`;
+}
+
+// ── Bar chart for vendor ranking ───────────────
+function buildBarChart(data) {
+  if (!data.length) return '<div class="empty">暂无数据</div>';
+  const max = Math.max(...data.map(d=>d.value));
+  return data.map((d,i) => `
+    <div class="bar-row">
+      <span class="bar-name" title="${d.name}">${d.name}</span>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:${d.value/max*100}%;background:${d.color}"></div>
+      </div>
+      <span class="bar-amt">${fmtAmt(d.value)}</span>
+    </div>`).join('');
+}
+
+// ── Aggregate helpers ──────────────────────────
+function aggregate(arr, keyFn, colorFn) {
+  const m = {};
+  arr.forEach(b => {
+    const k = keyFn(b) || '(未指定)';
+    if (!m[k]) m[k] = { name:k, value:0, count:0 };
+    m[k].value += b.amount;
+    m[k].count++;
+  });
+  const list = Object.values(m).sort((a,b)=>b.value-a.value);
+  list.forEach((d,i) => d.color = colorFn ? colorFn(d.name, i) : PALETTE[i % PALETTE.length]);
+  return list;
+}
+
+// ── Build month/week trend bars ────────────────
+function buildTrend(arr, range) {
+  if (!arr.length) return '<div class="empty">暂无数据</div>';
+  const dF = range.from ? new Date(range.from+'T12:00:00') : new Date(Math.min(...arr.map(b=>new Date((b.periodStart||b.date)+'T12:00:00'))));
+  const dT = range.to ? new Date(range.to+'T12:00:00') : new Date();
+  const days = Math.round((dT-dF)/86400000);
+  const useMonth = days > 90;
+
+  const buckets = {};
+  arr.forEach(b => {
+    const ref = b.periodStart || b.date;
+    const d = new Date(ref+'T12:00:00');
+    let key, label;
+    if (useMonth) {
+      key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      label = `${d.getMonth()+1}月`;
+    } else {
+      const dow = d.getDay() || 7;
+      const m = new Date(d); m.setDate(d.getDate()-(dow-1));
+      key = m.toISOString().slice(0,10);
+      const tmp = new Date(m); tmp.setDate(m.getDate()+3);
+      const yearStart = new Date(tmp.getFullYear(), 0, 1);
+      const wk = Math.ceil(((tmp-yearStart)/86400000+1)/7);
+      label = `W${wk}`;
+    }
+    if (!buckets[key]) buckets[key] = {key, label, value:0, count:0};
+    buckets[key].value += b.amount;
+    buckets[key].count++;
+  });
+  const series = Object.values(buckets).sort((a,b)=>a.key.localeCompare(b.key));
+  const max = Math.max(...series.map(s=>s.value));
+
+  return `
+    <div style="display:flex;align-items:flex-end;gap:6px;height:140px;overflow-x:auto;padding:6px 0">
+      ${series.map(s => `
+        <div style="flex:1;min-width:30px;display:flex;flex-direction:column;align-items:center;gap:4px">
+          <div style="font-size:10px;color:#553c9a;font-weight:700;white-space:nowrap">${fmtAmtShort(s.value)}</div>
+          <div style="width:100%;height:${Math.max(4, s.value/max*100)}%;background:linear-gradient(180deg,#667eea,#764ba2);border-radius:3px 3px 0 0;min-height:4px" title="${s.label}: ${fmtAmt(s.value)}"></div>
+          <div style="font-size:10px;color:#a0aec0;white-space:nowrap">${s.label}</div>
+        </div>`).join('')}
+    </div>`;
+}
+
+// ── Update vendor dropdown ─────────────────────
+function updateVendorDropdown() {
+  const sel = document.getElementById('f-vendor');
+  const cur = sel.value;
+  const allVendors = [...new Set(bills.map(b=>b.vendor))].sort();
+  sel.innerHTML = '<option value="">全部</option>' + allVendors.map(v =>
+    `<option value="${v}" ${v===cur?'selected':''}>${v}</option>`).join('');
+}
+
+// ── Main render ────────────────────────────────
+function render() {
+  updateVendorDropdown();
+  const arr = applyFilter();
+  const range = getRange();
+
+  // Filter chips
+  const wh = document.getElementById('f-warehouse').value;
+  const cat = document.getElementById('f-category').value;
+  const ven = document.getElementById('f-vendor').value;
+  const chips = [];
+  if (wh) chips.push(`🏢 ${wh}`);
+  if (cat) chips.push(`🏷️ ${cat}`);
+  if (ven) chips.push(`👤 ${ven}`);
+  chips.push(`📅 ${range.label}`);
+  document.getElementById('filter-chips').innerHTML = `<div style="margin:14px 0 4px">${chips.map(c=>`<span class="filter-chip">${c}</span>`).join('')}</div>`;
+
+  // Summary banner
+  const total = arr.reduce((s,b)=>s+b.amount, 0);
+  const paid = arr.filter(b=>effectiveStatus(b)==='paid').reduce((s,b)=>s+b.amount, 0);
+  const unpaid = arr.filter(b=>effectiveStatus(b)!=='paid').reduce((s,b)=>s+b.amount, 0);
+  document.getElementById('summary-banner').innerHTML = `
+    <div class="sb-item">
+      <div class="sb-label">合计金额</div>
+      <div class="sb-value" style="color:#553c9a">${fmtAmt(total)}</div>
+      <div class="sb-sub">${arr.length} 笔账单</div>
+    </div>
+    <div class="sb-item">
+      <div class="sb-label">已支付</div>
+      <div class="sb-value" style="color:#276749">${fmtAmt(paid)}</div>
+      <div class="sb-sub">${arr.filter(b=>effectiveStatus(b)==='paid').length} 笔 · ${total>0?(paid/total*100).toFixed(1):0}%</div>
+    </div>
+    <div class="sb-item">
+      <div class="sb-label">未支付</div>
+      <div class="sb-value" style="color:#c53030">${fmtAmt(unpaid)}</div>
+      <div class="sb-sub">${arr.filter(b=>effectiveStatus(b)!=='paid').length} 笔 · ${total>0?(unpaid/total*100).toFixed(1):0}%</div>
+    </div>
+    <div class="sb-item">
+      <div class="sb-label">平均单笔</div>
+      <div class="sb-value" style="color:#2b6cb0">${arr.length?fmtAmt(total/arr.length):'$0'}</div>
+      <div class="sb-sub">最大: ${arr.length?fmtAmtShort(Math.max(...arr.map(b=>b.amount))):'-'}</div>
+    </div>`;
+
+  if (!arr.length) {
+    document.getElementById('charts-grid').innerHTML = '<div class="chart-card empty" style="grid-column:1/-1">该筛选条件下无账单数据</div>';
+    return;
+  }
+
+  // Aggregate dimensions
+  const byCategory = aggregate(arr, b=>b.category, n=>CAT_HEX[n]||'#a0aec0');
+  const byWarehouse = aggregate(arr, b=>b.warehouse, (n,i)=>['#48bb78','#ed64a6','#4fd1c5','#a0aec0'][i%4]);
+  const byVendor = aggregate(arr, b=>b.vendor);
+  const byStatus = aggregate(arr, b=>effectiveStatus(b), n=>STATUS_HEX[n]||'#a0aec0').map(d=>({...d, name:STATUS_LABEL[d.name]||d.name}));
+  const byMethod = aggregate(arr, b=>b.method, (n,i)=>PALETTE[(i+3)%PALETTE.length]);
+
+  document.getElementById('charts-grid').innerHTML = `
+
+    <div class="chart-card">
+      <div class="chart-title">🏷️ 按账单类型</div>
+      <div class="chart-subtitle">外包工 / 卸货工 / 卫生费 等占比分布</div>
+      ${buildPieChart(byCategory, '总支出')}
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-title">🏢 按仓库</div>
+      <div class="chart-subtitle">各仓库支出占比</div>
+      ${buildPieChart(byWarehouse, '总支出')}
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-title">📊 按状态</div>
+      <div class="chart-subtitle">已付 / 待付 / 已提交 等状态分布</div>
+      ${buildPieChart(byStatus, '总额')}
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-title">💳 按支付方式</div>
+      <div class="chart-subtitle">ACH / Check / Cash 占比</div>
+      ${buildPieChart(byMethod, '总额')}
+    </div>
+
+    <div class="chart-card" style="grid-column:1/-1">
+      <div class="chart-title">👤 供应商排名 (Top 15)</div>
+      <div class="chart-subtitle">按支出金额从高到低</div>
+      ${buildBarChart(byVendor.slice(0, 15))}
+    </div>
+
+    <div class="chart-card" style="grid-column:1/-1">
+      <div class="chart-title">📈 时间走势</div>
+      <div class="chart-subtitle">${range.from && range.to ? '所选范围内' : '所有时间'} ${getRange().label}</div>
+      ${buildTrend(arr, range)}
+    </div>
+  `;
+}
+
+// Listen for storage changes (other tabs)
+window.addEventListener('storage', e => { if (e.key === STORAGE_KEY) { bills = JSON.parse(e.newValue || '[]'); render(); } });
+
+render();
+
+// Fetch fresh data from cloud
+refreshFromCloud();
+
+// PWA: register service worker
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
