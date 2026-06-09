@@ -40,6 +40,7 @@
   .ml-auto { margin-left: auto; }
 
   .week-group { margin: 14px 18px; background: white; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); overflow: hidden; }
+  .week-body { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .week-header { display: flex; align-items: center; gap: 10px; padding: 11px 15px; background: #f7fafc; border-bottom: 1px solid #e2e8f0; cursor: pointer; user-select: none; }
   .week-label { font-weight: 700; font-size: 13px; color: #2d3748; }
   .week-summary { font-size: 12px; color: #718096; margin-left: auto; }
@@ -164,6 +165,43 @@
   .trend-bar:hover { opacity:0.8; }
   .trend-bar-label { font-size:9px; color:#a0aec0; white-space:nowrap; transform:rotate(-30deg); transform-origin:left top; }
   .trend-bar-amt { font-size:9px; color:#553c9a; font-weight:700; white-space:nowrap; }
+
+  /* ===== 手机端适配 ===== */
+  @media (max-width: 640px) {
+    .header { padding: 16px 16px 14px; }
+    .header h1 { font-size: 18px; }
+
+    .stats { padding: 12px 12px; gap: 8px; }
+    .stat-card { min-width: calc(33.333% - 6px); padding: 9px 8px; }
+    .stat-card .val { font-size: 17px; }
+
+    .quickbar { padding: 10px 12px; gap: 6px; }
+    .qbtn { white-space: normal; flex: 1 1 100%; text-align: center; }
+    .toolbar { padding: 10px 12px; gap: 8px; }
+    .toolbar select, .toolbar input[type=text] { flex: 1 1 auto; min-width: 0; }
+    .ml-auto { margin-left: 0; }
+    .toolbar .btn, .quickbar .btn { flex: 1 1 100%; }
+
+    .week-group { margin: 12px 10px; }
+    .week-header { padding: 11px 12px; flex-wrap: wrap; }
+    .week-summary { margin-left: 0; width: 100%; }
+
+    .summary-panel { margin: 12px 10px; }
+    .summary-filters { padding: 12px; gap: 12px; }
+    .sf-group { min-width: 0; flex: 1 1 100%; }
+    .summary-body { padding: 12px; }
+    .summary-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+    .sv-bar-wrap { display: none; }
+    .sv-amt { min-width: 64px; }
+
+    .modal { width: 94%; padding: 18px; }
+    .form-row { grid-template-columns: 1fr; }
+    .modal-btns { flex-direction: column-reverse; }
+    .modal-btns .btn { width: 100%; }
+
+    .check-item { flex-wrap: wrap; }
+    .check-item input[type=number] { width: 100%; }
+  }
 </style>
 </head>
 <body>
